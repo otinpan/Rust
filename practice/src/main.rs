@@ -1,24 +1,18 @@
 use std::io;
-use rand::Rng;
-fn main() {
-    println!("Guess the number!");
+fn main(){
+    let a=[1,2,3,4,5];
+    println!("Please enter an array index.");
 
-    let secret_number=rand::thread_rng().gen_range(1..101);
-    //println!("The secret number is: {}",secret_number);
-
-    println!("Plewase input your guess.");
-
-    let mut guess=String::new();
-
+    let mut index=String::new();
     io::stdin()
-    .read_line(&mut guess)
-    .expect("Failed to read line");
+    .read_line(&mut index)
+    .expect("Failde to read line");
 
-    println!("You guessed: {}",guess);
+    let index: usize=index
+    .trim()
+    .parse()
+    .expect("Not number");
 
-    /*match guess.cmp(&secret_number){
-        Ordering::Less=>println!("Too small!"),
-        Ordering::Greater=>printnl!("Too big!"),
-        Ordergin::Equal=>println!("You win!"),
-    }*/
+    let element=a[index];
+    println!("The number of element at index {} is {}",index,element);
 }
