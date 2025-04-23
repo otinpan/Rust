@@ -233,3 +233,116 @@ fn main(){
 }
 ```
 配列の大きさ以上のindexはエラーになる  
+## 関数  
+Rustの関数と変数の命名規則は、**スネークケース**を使うことが慣例。スネークケースとは全文字を小文字にし、単語区切りにアンダースコアを使うこと。また、Rustにおいては関数をどこで定義してもよい。どこかで定義されているか、ということだけ気にする。
+```rust
+use std::io;
+fn main(){
+    println!("Hello,World!");
+
+    //another_function(-1); //関数の引数の型と一致していないからError
+    another_function(5,'k');
+}
+
+fn another_function(x:u32,unit_label: char){
+    println!("u32={},cahr={}",x,unit_label);
+}
+
+//引数の型を宣言しないとError
+/*fn another_function2(x){
+    println!("{}",x)
+}*/
+```
+### 引数  
+引数には2つの種類がある。引数の部分に実際の値を与えることができこの実際の値を**実引数**とよぶ。それ以外を**仮引数**という。Rustの関数では各仮引数の型を宣言しなければならない。
+### 関数本体は文と式を含む  
+関数本体は、文が並び、最後に式を置くか文を置くという形で形成される。Rustは式指向型言語であり、これは理解すべき重要な差異になる。
+```rust
+fn main(){
+    let y=6;//文である
+}
+```  
+これは文である。関数定義も文になり、全体としても文になる。文は値を返さない。故に、`let`文を他の変数に代入することはできない。
+```rust
+fn main(){
+    let x=(let y=6);
+}
+```  
+Errorになる。`let y=6`という文は値を返さないため、`X`に束縛するものはない。これはCやRubyとは異なる。`x=y=6`はダメ。
+```rust
+use std::io;
+fn main(){
+    let y={
+        let x=3; //これは文
+        x+1  //これは式
+    }; //これも文
+
+    //println!("{}",x); //スコープ外で定義されたErrorになる
+    println!("{}",y);
+}
+```
+新しいスコープを作る際に使用するブロック({})は式である。ブロックの中身を見ると`x+1`はセミコロンがついていないことに気づく。式は終端にセミコロンを含まない。終端にセミコロンをつけたら文に変わり、値を返さない。また、文は式を含むことが出来る。
+### 戻り値  
+関数はそれを呼び出したコードに値を返すことが出来る。戻り値に名前を付けはしないが、`->`の後に型を描いて宣言する必要がある。また、関数の最後は文ではなく式にし、値を返す。
+```rust
+use std::io;
+fn main(){
+    let x=2+five();
+    let y=plus_one(6);
+
+    println!("x={},y={}",x,y);
+}
+
+fn five()->i32{
+    5
+}
+
+fn plus_one(x:i32)->i32{
+    x+1
+}
+```
+もし関数の最後の行を式ではなく文にしてしまうと(`x+1;`)エラーになり、型が合いませんというメッセージを吐かれる。これは定義で`i32`型を返すと行っているのに文を返してしまっているからである。
+## 制御フロー  
+```rust
+use std::io;
+fn main(){
+    let number=3;
+    //制御式はbool型
+    if number<5{
+        println!("lower than 5");
+    }else if number<10{
+        println!("lower than 10");
+    }else{
+        println!("higher than 9");
+    }
+}
+``` 
+制御式は`bool`型でなけらばならない。条件式と紐づけられる一連のコードは**アーム**と呼ばれる。`else if`で条件を分岐させることが出来る。`if`文は式にもできるため`let`文の右辺にも持ってくることが出来る。
+### let文内でif式を使う  
+```rust
+use std::io;
+fn main(){
+    let condition=true;
+    let number={
+        if condition{
+            println!("Yes");
+            -5
+        }else{
+            println!("No");
+            6
+        }
+    };
+    println!("{}",number);
+}
+```
+`let`文内で`if`文を使う子もできるが`if`文は最後に式を与える必要がある。また、`if`と`else`の返す値の型は一致している必要がある。例えば
+```rust
+fn main() {
+    let condition = true;
+
+    let number = if condition { 5 } else { "six" };
+
+    println!("The value of number is: {}", number);
+}
+```
+はで`if`ブロックでは整数、`else`ブロックでは文字列に評価されエラーになる。
