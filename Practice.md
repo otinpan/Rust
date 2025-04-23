@@ -346,3 +346,84 @@ fn main() {
 }
 ```
 はで`if`ブロックでは整数、`else`ブロックでは文字列に評価されエラーになる。
+## ループでの繰り返し  
+### loop
+`loop`を使用すると、同じコードを何度も永遠に繰り返す。loopは強制的に`ctr+c`で抜け出すことが出来る。
+```rust
+use std::io;
+fn main(){
+    let mut count=0;
+    'counting_up:loop{
+        println!("count={}",count);
+        let mut remaining=10;
+
+        loop{
+            println!("remaining={}",remaining);
+            if remaining==9{
+                break;
+            }
+            if count==2{
+                break 'counting_up;
+            }
+            remaining-=1;
+        }
+        count+=1;
+    }
+    println!("End count={}",count);
+}
+```  
+c言語と同じように`break`や`continue`を使うことが出来る。また`loop`に``counting_up`というラベルがついていることがわかる。このように**ループラベル**を使用することで`break`や`continue`を適用するループを指定することが出来る。
+### while  
+```rust
+use std::io;
+fn main(){
+    let mut number=3;
+    while number!=0{
+        println!("{}",number);
+        number-=1;
+    }
+}
+```  
+c言語のように`while`で条件付ループを作ることも出来る。`while(num<5)`のようなもの  
+### for  
+```rust
+use std::io;
+fn main(){
+    let a=[10,20,30,40,50];
+    let mut index=0;
+    while index<5{
+        println!("{}",a[index]);
+        index+=1;
+    }
+}
+```  
+このようにすれば配列の中身をすべて見ることができる。ただ、これは配列の長さをミスしたり、ループの回数ごとに境界地チェックを行うため遅い。そこで`for`ループを使う  
+```rust
+use std::io;
+fn main(){
+    let a=[10,20,30,40,50];
+
+    for element in a{
+        println!("{}",element);
+    }
+}
+```
+バグの可能性を削除する。また値を順番に更新することもできる。c++での`for(int i=0;i<n;i++)`のようなもの。
+```rust
+use std::io;
+fn main(){
+    for number in 1..4{
+        println!("{}",number);
+    }
+
+    //reverseする
+    for number in (1..4).rev(){
+        println!("{}",number);
+    }
+
+    //1個とばし
+    for number in (1..10).step_by(2){
+        println!("{}",number);
+    }
+}
+```
