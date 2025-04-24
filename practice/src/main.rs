@@ -1,16 +1,38 @@
 use std::io;
 fn main(){
-    for number in 1..4{
-        println!("{}",number);
+    let mut input=String::new();
+    let mut num:u32;
+
+    //数値の入力
+    loop{
+        println!("please input number");
+
+        io::stdin()
+        .read_line(&mut input)
+        .unwrap();
+    
+        num=input.trim().parse().expect("can not convert");
+
+        if num<=0{
+            continue;
+        }else{
+            break;
+        }
     }
 
-    //reverseする
-    for number in (1..4).rev(){
-        println!("{}",number);
+    if num==1||num==2{
+        println!("1");
+        return;
+    }
+    let mut pre=1;
+    let mut ppre=1;
+    let mut now=2;
+    for i in 2..num{
+        let keep=now;
+        now=pre+ppre;
+        ppre=pre;
+        pre=now;
     }
 
-    //1個とばし
-    for number in (1..10).step_by(2){
-        println!("{}",number);
-    }
+    println!("{}",now);
 }
