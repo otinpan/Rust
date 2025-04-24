@@ -507,4 +507,121 @@ fn main(){
     // sで作業をする
 }                      // このスコープは終わり。もうsは有効ではない
 ```  
-### 
+### String型
+文字列リテラル(`"Hello!"`など)は便利であるがテキストを使いたいかもしれないすべての場面において最適なわけではない。それは文字列リテラルが不変であり、またコードをかく際にすべての文字列が判明するわけではないからである。不変であるためスタックに保存され高速である。Rustには文字列リテラルのほかに`String`型が存在する。これは可変でありヒープに保存される。  
+```rust
+let mut s=String::from("Hello");
+s.push_str(",world!");
+```
+このように文字列リテラルを`String`型に変換することが出来、可変化する。  
+### メモリと確保
+文字列リテラルの場合、中身はコンパイル時に判明しているので、テキストは最終的なバイナルファイルにハードコードされる。そのため高速で効率的になる。対して可変である`String`型はコンパイル時に不明な寮のメモリをヒープに保存する  
+* メモリは実行時にOSに要求される
+* `String`型を使用したらOSにメモリを変換する方法が必要  
+ガベージコレクタ(GC)月の言語ではGCがこれ以上使用されないメモリを検知して片付けるため、プログラマはそのことを考慮する必要はない。GCがないなら、メモリがもう使用されないことを見計らい、明示的に返還しなければならない。これはプログラマの責任になる。もし返還し忘れていたらメモリが無駄になり、2回解放してもバグになる。`allocate`と`free`は完璧に1対1対応しなければならない。  
+Rustは異なる道を歩む。メモリを所有している変数がスコープを抜けたらメモリは自動的に返還される。変数がスコープを抜けるとき、Rustは特別な関数`drop`を呼ぶ。これでメモリを解放する。
+### ムーブ
+Rustには複数の変数が同じデータに対して異なる手段で相互作用することが出来る。
+```rust
+let x=5;
+let y=x;
+```
+値`5`を`x`に束縛してから`x`の値をコピーして`y`に束縛する。固定サイズの単純な値であるためこれらの2つの`5`はスタックにつまれる。  
+```rust
+let s1 = String::from("hello");
+let s2 = s1;
+```
+`String`型になると少し事情は変わる。`s1`ポインタ、長さ、許容量をもつ。ポインタは空のメモリを指す。
+![Rust Memory Share](https://www.bing.com/images/search?view=detailv2&form=SBIHVR&lightschemeovr=1&iss=SBI&q=imgurl:https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-04.svg&pageurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fch04-01-what-is-ownership.html%23%25E3%2582%25B9%25E3%2582%25BF%25E3%2583%2583%25E3%2582%25AF%25E3%2581%25A8%25E3%2583%2592%25E3%2583%25BC%25E3%2583%2597&pagetl=%E6%89%80%E6%9C%89%E6%A8%A9%E3%81%A8%E3%81%AF%EF%BC%9F+-+The+Rust+Programming+Language+%E6%97%A5%E6%9C%AC%E8%AA%9E%E7%89%88&imgalt=s2%E3%81%AB%E3%83%A0%E3%83%BC%E3%83%96%E3%81%95%E3%82%8C%E3%81%9Fs1&imgsz=325x325&selectedindex=0&id=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-04.svg&ccid=yd1VGz5j&mediaurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-04.svg&exph=1000&expw=1000&vt=3&sim=11&cal=0&cab=1&cat=0&car=1)
+`s1`を`s2`に代入すると`String`型のデータがコピーされる。スタックにあるポインタ、長さ、許容量をコピーし、ヒープ上のデータはコピーしない。ここにRustのバグの1つが隠されている。`s1`、`s2`が須古プを抜けたら、両方とも同じメモリを解放しようとする。これは**二重解放エラー**として知られ、メモリ安全性上のバグの一つになる。  
+メモリ安全性を保証するためにこの場面で起こるバグがもう一つある  
+```rust
+let s1 = String::from("hello");
+let s2 = s1;
+
+println!("{}, world!", s1);
+```  
+確保されたメモリをコピーしようとする代わりに、コンパイラは`s1`が最早有効ではないと考え、`s1`がスコープを抜けた際に何も解放する必要がなくなる。`s2`の生成後に`s1`を使用しようとしたら動かなくなる。これは`s1`が`s2`に**ムーブ**されたと表現され、`s1`は無効に、`s2`のみ有効とみなされる。これは**shallow copy**(表面だけのコピー、中のデータは元と共有している)ににているが少し違うことがわかる(共有というより移動に近い)。Rustでは**deep copy**(データもコピーされる)が自動で行われることは絶対にない。  
+### クローン  
+仮にスタック上のデータだけでなく本当に`String`型のヒープデータのdeep copyが必要なら`clone`と呼ばれるメソッドを使うことが出来る  
+```rust
+let s1 = String::from("hello");
+let s2 = s1.clone();
+
+println!("s1 = {}, s2 = {}", s1, s2);
+```
+![Clone](https://www.bing.com/images/search?view=detailv2&form=SBIHVR&lightschemeovr=1&iss=SBI&q=imgurl:https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-03.svg&pageurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fch04-01-what-is-ownership.html%23%25E3%2582%25B9%25E3%2582%25BF%25E3%2583%2583%25E3%2582%25AF%25E3%2581%25A8%25E3%2583%2592%25E3%2583%25BC%25E3%2583%2597&pagetl=%E6%89%80%E6%9C%89%E6%A8%A9%E3%81%A8%E3%81%AF%EF%BC%9F+-+The+Rust+Programming+Language+%E6%97%A5%E6%9C%AC%E8%AA%9E%E7%89%88&imgalt=2%E7%AE%87%E6%89%80%E3%81%B8%E3%81%AEs1%E3%81%A8s2&imgsz=325x423&selectedindex=0&id=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-03.svg&thid=OIP.q6rCa35qLcuJgxufIGY06QHaJo&mediaurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-03.svg&exph=1300&expw=1000&vt=3&sim=11&cal=0&cab=1&cat=0&car=1)  
+### スタック蚤のデータ
+```rust
+let x = 5;
+let y = x;
+
+println!("x = {}, y = {}", x, y);
+```
+これはエラーが出ると思うかもしれないがしない。これは一見矛盾しているように見える。`clone`メソッドがないのに`x`は有効で`y`にムーブされていないように見れる。それは、整数のようなコンパイル時に既知のサイズを持つ型は、スタック上にすっぽり保持されるため、実際の値をコピーするのも高速だからである。言い換えると`x`を無効化する理由がなくなり、shallow coppyとdeep copyの違いがなくなる。  
+* あらゆる整数型
+* 論理値型
+* 浮動小数点型
+* 文字型
+* タプル。`(i32,i32)`はokだが`(String,i32)`はダメ
+これらはムーブでなく`Copy`  
+### 所有権と関数  
+```rust
+fn main() {
+    let s = String::from("hello");  // sがスコープに入る
+
+    takes_ownership(s);             // sの値が関数の引数にムーブされる
+                                    // ... ここではもう有効ではない
+
+    let x = 5;                      // xがスコープに入る
+
+    makes_copy(x);                  // xも関数にムーブされるが、
+                                    // i32はCopyなので、この後にxを使っても
+                                    // 大丈夫
+
+} // ここでxがスコープを抜け、sもスコープを抜ける。ただし、sの値はムーブされているので、何も特別なことは起こらない。
+  //
+
+fn takes_ownership(some_string: String) { // some_stringがスコープに入る。
+    println!("{}", some_string);
+} // ここでsome_stringがスコープを抜け、`drop`が呼ばれる。後ろ盾してたメモリが解放される。
+  // 
+
+fn makes_copy(some_integer: i32) { // some_integerがスコープに入る
+    println!("{}", some_integer);
+} // ここでsome_integerがスコープを抜ける。何も特別なことはない。
+```
+`takes_ownership`の後に`s`を呼び出そうとすると、コンパイラはエラーを投げる。これは関数の引数に`s`がムーブされ、`s`が無効になったからである。それに対して、`x`は整数型であるためムーブではなくコピーされる。  
+```rust
+use std::io;
+fn main() {
+    let s1 = gives_ownership();         // gives_ownershipは、戻り値をs1に
+                                        // ムーブする
+
+    let s2 = String::from("hello");     // s2がスコープに入る
+
+    let s3 = takes_and_gives_back(s2);  // s2はtakes_and_gives_backにムーブされ
+                                        // 戻り値もs3にムーブされる
+    println!("{}",s1);
+    //println!("{}",s2);                //s2は無効
+    println!("{}",s3);
+    
+} // ここで、s3はスコープを抜け、ドロップされる。s2もスコープを抜けるが、ムーブされているので、
+  // 何も起きない。s1もスコープを抜け、ドロップされる。
+
+fn gives_ownership() -> String {             // gives_ownershipは、戻り値を
+                                             // 呼び出した関数にムーブする
+
+    let some_string = String::from("hello"); // some_stringがスコープに入る
+
+    some_string                              // some_stringが返され、呼び出し元関数に
+                                             // ムーブされる
+}
+
+// takes_and_gives_backは、Stringを一つ受け取り、返す。
+fn takes_and_gives_back(a_string: String) -> String { // a_stringがスコープに入る。
+
+    a_string  // a_stringが返され、呼び出し元関数にムーブされる
+}
+```
+値を返すことでも所有権は移動する。変数に値を代入されるとムーブされ、スコープを抜けると`drop`により片付けられる。
