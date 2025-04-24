@@ -517,7 +517,8 @@ s.push_str(",world!");
 ### メモリと確保
 文字列リテラルの場合、中身はコンパイル時に判明しているので、テキストは最終的なバイナルファイルにハードコードされる。そのため高速で効率的になる。対して可変である`String`型はコンパイル時に不明な寮のメモリをヒープに保存する  
 * メモリは実行時にOSに要求される
-* `String`型を使用したらOSにメモリを変換する方法が必要  
+* `String`型を使用したらOSにメモリを変換する方法が必要
+
 ガベージコレクタ(GC)月の言語ではGCがこれ以上使用されないメモリを検知して片付けるため、プログラマはそのことを考慮する必要はない。GCがないなら、メモリがもう使用されないことを見計らい、明示的に返還しなければならない。これはプログラマの責任になる。もし返還し忘れていたらメモリが無駄になり、2回解放してもバグになる。`allocate`と`free`は完璧に1対1対応しなければならない。  
 Rustは異なる道を歩む。メモリを所有している変数がスコープを抜けたらメモリは自動的に返還される。変数がスコープを抜けるとき、Rustは特別な関数`drop`を呼ぶ。これでメモリを解放する。
 ### ムーブ
@@ -532,7 +533,7 @@ let s1 = String::from("hello");
 let s2 = s1;
 ```
 `String`型になると少し事情は変わる。`s1`ポインタ、長さ、許容量をもつ。ポインタは空のメモリを指す。
-![Rust Memory Share](https://www.bing.com/images/search?view=detailv2&form=SBIHVR&lightschemeovr=1&iss=SBI&q=imgurl:https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-04.svg&pageurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fch04-01-what-is-ownership.html%23%25E3%2582%25B9%25E3%2582%25BF%25E3%2583%2583%25E3%2582%25AF%25E3%2581%25A8%25E3%2583%2592%25E3%2583%25BC%25E3%2583%2597&pagetl=%E6%89%80%E6%9C%89%E6%A8%A9%E3%81%A8%E3%81%AF%EF%BC%9F+-+The+Rust+Programming+Language+%E6%97%A5%E6%9C%AC%E8%AA%9E%E7%89%88&imgalt=s2%E3%81%AB%E3%83%A0%E3%83%BC%E3%83%96%E3%81%95%E3%82%8C%E3%81%9Fs1&imgsz=325x325&selectedindex=0&id=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-04.svg&ccid=yd1VGz5j&mediaurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-04.svg&exph=1000&expw=1000&vt=3&sim=11&cal=0&cab=1&cat=0&car=1)
+![Rust Memory Share](https://doc.rust-jp.rs/book-ja/img/trpl04-04.svg)  
 `s1`を`s2`に代入すると`String`型のデータがコピーされる。スタックにあるポインタ、長さ、許容量をコピーし、ヒープ上のデータはコピーしない。ここにRustのバグの1つが隠されている。`s1`、`s2`が須古プを抜けたら、両方とも同じメモリを解放しようとする。これは**二重解放エラー**として知られ、メモリ安全性上のバグの一つになる。  
 メモリ安全性を保証するためにこの場面で起こるバグがもう一つある  
 ```rust
@@ -550,7 +551,7 @@ let s2 = s1.clone();
 
 println!("s1 = {}, s2 = {}", s1, s2);
 ```
-![Clone](https://www.bing.com/images/search?view=detailv2&form=SBIHVR&lightschemeovr=1&iss=SBI&q=imgurl:https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-03.svg&pageurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fch04-01-what-is-ownership.html%23%25E3%2582%25B9%25E3%2582%25BF%25E3%2583%2583%25E3%2582%25AF%25E3%2581%25A8%25E3%2583%2592%25E3%2583%25BC%25E3%2583%2597&pagetl=%E6%89%80%E6%9C%89%E6%A8%A9%E3%81%A8%E3%81%AF%EF%BC%9F+-+The+Rust+Programming+Language+%E6%97%A5%E6%9C%AC%E8%AA%9E%E7%89%88&imgalt=2%E7%AE%87%E6%89%80%E3%81%B8%E3%81%AEs1%E3%81%A8s2&imgsz=325x423&selectedindex=0&id=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-03.svg&thid=OIP.q6rCa35qLcuJgxufIGY06QHaJo&mediaurl=https%3A%2F%2Fdoc.rust-jp.rs%2Fbook-ja%2Fimg%2Ftrpl04-03.svg&exph=1300&expw=1000&vt=3&sim=11&cal=0&cab=1&cat=0&car=1)  
+![Clone](https://doc.rust-jp.rs/book-ja/img/trpl04-03.svg)  
 ### スタック蚤のデータ
 ```rust
 let x = 5;
