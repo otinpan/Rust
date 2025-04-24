@@ -552,7 +552,7 @@ let s2 = s1.clone();
 println!("s1 = {}, s2 = {}", s1, s2);
 ```
 ![Clone](https://doc.rust-jp.rs/book-ja/img/trpl04-03.svg)  
-### スタック蚤のデータ
+### スタックのみのデータ
 ```rust
 let x = 5;
 let y = x;
