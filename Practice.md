@@ -534,7 +534,7 @@ let s2 = s1;
 ```
 `String`型になると少し事情は変わる。`s1`ポインタ、長さ、許容量をもつ。ポインタは空のメモリを指す。
 ![Rust Memory Share](https://doc.rust-jp.rs/book-ja/img/trpl04-04.svg)  
-`s1`を`s2`に代入すると`String`型のデータがコピーされる。スタックにあるポインタ、長さ、許容量をコピーし、ヒープ上のデータはコピーしない。ここにRustのバグの1つが隠されている。`s1`、`s2`が須古プを抜けたら、両方とも同じメモリを解放しようとする。これは**二重解放エラー**として知られ、メモリ安全性上のバグの一つになる。  
+`s1`を`s2`に代入すると`String`型のデータがコピーされる。スタックにあるポインタ、長さ、許容量をコピーし、ヒープ上のデータはコピーしない。ここにRustのバグの1つが隠されている。`s1`、`s2`がスコープを抜けたら、両方とも同じメモリを解放しようとする。これは**二重解放エラー**として知られ、メモリ安全性上のバグの一つになる。  
 メモリ安全性を保証するためにこの場面で起こるバグがもう一つある  
 ```rust
 let s1 = String::from("hello");
@@ -626,3 +626,131 @@ fn takes_and_gives_back(a_string: String) -> String { // a_stringがスコープ
 }
 ```
 値を返すことでも所有権は移動する。変数に値を代入されるとムーブされ、スコープを抜けると`drop`により片付けられる。
+## 参照と借用  
+```rust
+use std::io;
+fn main(){
+  let s1=String::from("hello");
+
+  let len=calculate_length(&s1); //参照を渡している
+
+  println!("{},{}",s1,len);
+}
+
+fn calculate_length(s:&String)->usize{
+  s.len()
+}//sはスコープ外になるが、
+//参照しているものの所有権を持っていないため何も起こらない
+```
+`calculate_length`は`String`型ではなく`&String`を受け取る。これによって関数内の`s`は所有権をもらうことなく、値を参照する。  
+![借用](https://doc.rust-jp.rs/book-ja/img/trpl04-05.svg)  
+変数`s`が有効なスコープはあらゆる関数の引数と同じでスコープ内に限るが、`s`は引数を参照しているだけで、参照が指しているものをドロップすることはない。所有権をもらわないため、所有権を返す目的で値を返す必要がない。  
+このように引数に参照をとることを**借用**と呼ぶ。 
+```rust
+use std::io;
+fn main() {
+  let s = String::from("hello");
+  let s1=&s; //sを参照
+  let s2=&s; //sを参照
+  let s3=&s1; //s1を参照
+  let s4=&s3; //s3を参照
+
+  // Stringの内部バッファの先頭アドレスを *mut u8 として取得
+  let s_ptr = s.as_ptr();
+  let s1_ptr=s1.as_ptr();
+  let s2_ptr=s2.as_ptr();
+  let s3_ptr=s3.as_ptr();
+  let s4_ptr=s4.as_ptr();
+
+  println!("pointer of s: {:p}", s_ptr);
+  println!("pointer of s1: {:p}",s1_ptr);
+  println!("pointer of s2: {:p}",s2_ptr);
+  println!("pointer of s3: {:p}",s3_ptr);
+  println!("pointer of s4: {:p}",s4_ptr);
+}
+
+```  
+これは実際同じ生ポインタをとる。もし、借用した何かを変更しようとしたら、どうなるか。それはエラーになる。参照は不変である。 
+```rust
+fn main() {
+    let s = String::from("hello");
+
+    change(&s);
+}
+
+fn change(some_string: &String) {
+    some_string.push_str(", world");
+}
+```  
+これはエラーになってしまう。  
+## 可変な参照  
+上のコードは少し変更を加えるだけでエラーを解決することが出来る。
+```rust
+use std::io;
+fn main(){
+  let mut s~String::from("hello");
+  change(&mut s);
+}
+
+fn change(some_string:mut& String){
+  some_string.push_str(",world");
+}
+```
+まず`s`を`mut`に変えて、`&mut s`で可変な参照を生成する。そして`some_string:&mut String`で可変な参照を受け入れる必要がある。すると参照した値を変化させることが出来る。  
+だが、可変な参照には大きな制約が一つある。それは、特定のスコープで、ある特定のデータに対しては、一つしか可変な参照を持てないことである。
+```rust
+    let mut s = String::from("hello");
+
+    let r1 = &mut s;
+    let r2 = &mut s;
+
+    println!("{}, {}", r1, r2);
+```
+たとえばこれはエラーになる。この制約は可変化を許可するものの、それを非常に統制の取れた形で行える。この制約がある利点は、コンパイラがコンパイル時にデータ競合を防ぐことができる点である。データ競合とはこれら3つの振る舞いが起きるときに発生する。  
+* 2つ以上のポインタが  
+* 少なくとも1つのポインタがデータに書き込みを行っている  
+* データへのアクセスを同期する機構が使用されない  
+
+Rustはデータ競合が起こるコードをコンパイルさえしないため、この問題が発生しないようにしてくれる。スコープの外で**同時並行**でなく複数の可変な参照を作ることはできる。
+```rust
+let mut s = String::from("hello");
+
+{
+    let r1 = &mut s;
+
+} // r1はここでスコープを抜けるので、問題なく新しい参照を作ることができる
+
+let r2 = &mut s;
+```  
+可変と不変の参照を組み合わせることは出来ない
+```rust
+let mut s = String::from("hello");
+
+let r1 = &s; // 問題なし
+let r2 = &s; // 問題なし
+let r3 = &mut s; // 大問題！
+```
+不変な参照をしている間は、可変な参照をすることは出来ない。不変参照の使用者は、それ以降に値が突然変わることなんて予想していない!
+### 宙に浮いた参照
+ポインタのある言語では、誤ってダングリングポインタを生成してしまいやすい。これは、他人に渡されてしまった可能性のあるメモリを指すポインタのことである、その箇所へのポインタを保持している間にメモリを解放してしまうことで発生する。Rustではダングリング参照が起こらないことを保証する。なんらかのデータへの参照があったら、コンパイラは参照がスコープを抜けるまで、データがスコープを抜けることがないように確認する。
+```rust
+fn main() {
+    let reference_to_nothing = dangle(); //sを参照
+}
+
+fn dangle() -> &String {
+    let s = String::from("hello");
+
+    &s
+}//ここでsはスコープを抜けドロップされる。そのメモリは消される
+//危険!!
+```
+これはエラーになる。`S`がスコープを抜けたことで無効な参照を返そうとするため。
+```rust
+fn no_dangle() -> String {
+    let s = String::from("hello");
+
+    s
+}
+```
+この場合`s`はの所有権はムーブされ、何も解放されることはない。
