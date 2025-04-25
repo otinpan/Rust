@@ -1,9 +1,18 @@
 use std::io;
 fn main(){
-  let reference_to_nothing=dangle();
+  let mut s=String::from(" hello");
+  let word=first_word(&s);
+
+  println!("{}",word);
+  s.clear();
 }
 
-fn dangle()->String{
-  let s=String::frmo("hello");
-  s
+fn first_word(s:&String)->usize{
+  let bytes=s.as_bytes();
+  for(i,&item)in bytes.iter().enumerate(){
+    if item==b' '{
+      return i
+    }
+  }
+  s.len()
 }
