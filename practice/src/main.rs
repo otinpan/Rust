@@ -1,18 +1,18 @@
 use std::io;
 fn main(){
-  let mut s=String::from(" hello");
-  let word=first_word(&s);
+  let s=String::from("hello world");
 
-  println!("{}",word);
-  s.clear();
+  let k=first_word1(&s);
+ 
+  println!("{}",k);
 }
 
-fn first_word(s:&String)->usize{
+fn first_word1(s: &str)->&str{
   let bytes=s.as_bytes();
-  for(i,&item)in bytes.iter().enumerate(){
+  for (i,&item) in bytes.iter().enumerate(){
     if item==b' '{
-      return i
+      return &s[0..i]
     }
   }
-  s.len()
+  &s[..]
 }

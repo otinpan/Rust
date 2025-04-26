@@ -754,3 +754,82 @@ fn no_dangle() -> String {
 }
 ```
 この場合`s`はの所有権はムーブされ、何も解放されることはない。
+## スライス型  
+```rust
+use std::io;
+fn main(){
+  let mut s=String::from("hello everyone! hello world!");
+  let word=first_word(&s);
+
+  println!("{}",word);
+  s.clear(); //Stringを空にする。
+  println!("{},{}",s,word); //sは空になり、wordは5のまま
+}
+
+fn first_word(s:&String)->usize{
+  let bytes=s.as_bytes();
+  for(i,&item)in bytes.iter().enumerate(){
+    if item==b' '{
+      return i
+    }
+  }
+  s.len()
+}
+```
+このコードは文字列の区切れ目の位置を表示するものである。`first_word`関数は`String`型の`s`を参照し、空白の位置を返す。`word`は`s`に最初に現れる空白の位置を持つ。その後、`s`を`clear()`で空にしても`word`は`5`のままで`0`にはならない。これは`word`と`s`が同期されていないことを表す。例えば、2つ目の区切れ目、3つ目の区切れ目、、、を保存したいとき管理が難しくなる。
+### 文字列スライス
+これを解決する方法がRustでは用意されている。それが**文字列スライス**である。
+```rust
+  let s=String::from("hello world");
+  let hello=&s[0..5];
+  let world=&s[6..s.len()];
+```  
+この方法で文字列を切り取ることが出来る。ただ、範囲外のスライスを指定するとエラーがでる。この方法で文から単語を抜き取る関数を書き直す  
+![Slice](https://doc.rust-jp.rs/book-ja/img/trpl04-06.svg)
+```rust
+fn first_word1(s: &String)->&str{
+  let bytes=s.as_bytes();
+  for (i,&item) in bytes.iter().enumerate(){
+    if item==b' '{
+      return &s[0..i]
+    }
+  }
+  &s[..]
+}
+```  
+`first_word`関数は引数を参照して、空白の位置を返す。それによって空白の位置を保存することが出来るが、それが元のデータと同期をとれないというのがバグの元であった。しかし、この関数を使うと引数を参照して、空白を発見したら、文字列スライスを返す。これは元のデータと同期が取れている。
+```rust
+use std::io;
+fn main(){
+  let s=String::from("hello world");
+
+  let k=first_word1(&s);
+  s.clear(); //Error
+  println!("{}",k);
+}
+```
+しかし、このように`k`に`s`のスライスが保存されている状態で`s`が`clear()`されるとコンパイルエラーになる。
+```
+
+5 |   let k=first_word1(&s);
+  |                     -- immutable borrow occurs here
+6 |   s.clear(); //Error
+  |   ^^^^^^^^^ mutable borrow occurs here
+7 |   println!("{}",k);
+  |                 - immutable borrow later used here
+```  
+これは不変参照`k=first_word1(&s)`が起こった後に、さらに可変な参照`s.clera()`が起こっているからである。借用規則から、何か不変な参照があるとき、さらに可変な参照を得ることはできないということに反している。  
+###　文字列リテラルはスライスである  
+`let s="Hello,world!"`ここでの`s`の型は`&str`である。これはバイナリの特定の位置を指すスライスである。`&str`は不変な参照であるため、文字列リテラルは不変である。
+```rust
+fn first_word(s: &str) -> &str {
+    //...
+}
+```
+このように引数を取ると`String`型も`&str`型も受け取ることが出来る。`String`型は文字列スライスとして引数に渡される。　　
+整数型の配列もスライスできる
+```rust
+let a = [1, 2, 3, 4, 5];
+
+let slice = &a[1..3];
+```
