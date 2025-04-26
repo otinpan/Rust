@@ -819,7 +819,7 @@ fn main(){
   |                 - immutable borrow later used here
 ```  
 これは不変参照`k=first_word1(&s)`が起こった後に、さらに可変な参照`s.clera()`が起こっているからである。借用規則から、何か不変な参照があるとき、さらに可変な参照を得ることはできないということに反している。  
-###　文字列リテラルはスライスである  
+### 文字列リテラルはスライスである  
 `let s="Hello,world!"`ここでの`s`の型は`&str`である。これはバイナリの特定の位置を指すスライスである。`&str`は不変な参照であるため、文字列リテラルは不変である。
 ```rust
 fn first_word(s: &str) -> &str {
@@ -833,3 +833,69 @@ let a = [1, 2, 3, 4, 5];
 
 let slice = &a[1..3];
 ```
+## 構造体
+### 構造体の定義とインスタンス化
+```rust
+use std::io;
+struct User{
+  //フィールド
+  username:String,
+  email:String,
+  sign_in_count:u64,
+  active:bool,
+}
+
+fn main(){
+  //インスタンス化
+  let user1=User{
+    email:String::from("someone@example.com"),
+    username:String::from("someusername123"),
+    active:true,
+    sign_in_count:1,
+  };
+
+  let mut user2=User{
+    email:String::from("someone2@example.com"),
+    username:String::from("someone2"),
+    //構造体更新記法
+    ..user1 //明示的にセットされていない残りのフィールドが
+    //与えられたインスタンスのフィールドと同じ名なるようにする
+  };
+  user2.email=String::from("anotheremail@example.com");
+  println!("user1name:{}",user1.username);
+  println!("user2email:{}",user2.email);
+}
+```
+構造体は`struct`で定義できる。構造値のデータ片の名前と型を**フィールド**に定義し、構造体をデータ片の集まりととらえることが出来る。インスタンスが可変であればフィールドに値を代入することで変更することが出来る。しかしインスタンス全体が可変でならなければならないことに注意する必要がある。一部のフィールドのみを可変にすることは出来ない。`User`構造体定義において`&str`文字列スライス型ではなく、所有権のある`String`型を使用した。これは構造体のインスタンスには全データを所有してもらう必要があり、このデータは構造体全体が有効な間はずっと有効である必要がある。(文字列スライス型は文字列データへの参照であり、自分ではデータを所有していない。データはどこか別の場所にあり、`&str`はその場所を指しているだけ)    　
+### 構造体更新記法
+**構造体更新記法**で他のインスタンスからインスタンスを生成することができる。明示的にセットされていない残りのフィールドを`.."インスタンス"`で与えられてたインスタンスのフィールドと同じ値になるように指定する。  
+### 初期化省略記法  
+```rust 
+fn build_user(email:String,username:String){
+  User{
+    email,
+    username,
+    active:true,
+    sign_in_count:1,
+  }
+}
+```
+このように関数の引数と、構造体のフィールドの値が同じ名前の場合`email:emai;,`とかく必要がなく、省略できる。
+### タプル構造体
+```rust
+use std::io;
+struct Color(i32, i32, i32);
+struct Point(i32, i32, i32);
+
+fn main(){
+  //インスタンス化
+  let black=Color(0,0,0);
+  let origin=Point(1,0,0);
+
+  println!("{}",black.0);
+  println!("{}",origin.0);
+}
+```
+構造体名により追加の意味を含むものの、フィールドに紐づけられた名前がなく、フィールドの型だけの**タプル構造体**と呼ばれる、タプルに似た構造体を定義することが出来る。構造体のフィールドが同じ型であても、それ自身が独自の型になる。そのため`Color`と`Point`は別のものであり、`Color`型を引数に取る関数は`Point`を引数に取ることはできない  
+### ユニット様構造体
+フィールドのない構造体をユニット様構造体と呼ぶ。
