@@ -899,3 +899,155 @@ fn main(){
 構造体名により追加の意味を含むものの、フィールドに紐づけられた名前がなく、フィールドの型だけの**タプル構造体**と呼ばれる、タプルに似た構造体を定義することが出来る。構造体のフィールドが同じ型であても、それ自身が独自の型になる。そのため`Color`と`Point`は別のものであり、`Color`型を引数に取る関数は`Point`を引数に取ることはできない  
 ### ユニット様構造体
 フィールドのない構造体をユニット様構造体と呼ぶ。
+### 構造体を使ったプログラムの例  
+```rust
+use std::io;
+struct Rect{
+  width:u32,
+  height:u32,
+}
+
+fn main(){
+  let rect1=Rect{width:30,height:50};
+
+  println!("{}",get_area(&rect1));
+}
+
+fn get_area(rect:&Rect)->u32{
+  rect.width*rect.height
+}
+```  
+例えばこれは長方形の構造体と、その面積を求める関数である。構造体のフィールドを作ることによって関数の意図を示すようになった。関数はインスタンスへの不変借用をとり、所有権は映っていない。  
+### トレイトの導出で有用な機能を追加する  
+```rust
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+
+fn main() {
+    let rect1 = Rectangle { width: 30, height: 50 };
+
+    // rect1は{}です
+    println!("rect1 is {}", rect1);
+}
+```   
+このようにインスタンス`rect1`を出力しようとするとエラーになる。
+```
+error[E0277]: the trait bound `Rectangle: std::fmt::Display` is not satisfied
+(エラー: トレイト境界`Rectangle: std::fmt::Display`が満たされていません)
+```
+`println!`には様々な整形があり、標準では波括弧は`Display`として知られる整形をするように`println!`に指示をする。  
+```
+`Rectangle` cannot be formatted with the default formatter; try using
+`:?` instead if you are using a format string
+(注釈: `Rectangle`は、デフォルト整形機では、整形できません; フォーマット文字列を使うのなら
+代わりに`:?`を試してみてください)
+```
+ただ構造体には`Display`が実装されていないため`println!`に別の出力整形を使いたいという指示をする必要がある。その出力整形が`Debug`である。これを指示するために`println!("rect1 is {:?},rect1)`と書き換える。ただ、それでもエラーになる  
+```
+error[E0277]: the trait bound `Rectangle: std::fmt::Debug` is not satisfied
+(エラー: トレイト境界`Rectangle: std::fmt::Debug`が満たされていません)
+```  
+```
+`Rectangle` cannot be formatted using `:?`; if it is defined in your
+crate, add `#[derive(Debug)]` or manually implement it
+(注釈: `Rectangle`は`:?`を使って整形できません; 自分のクレートで定義しているのなら
+`#[derive(Debug)]`を追加するか、手動で実装してください)
+```
+確かにRustにはデバッグ用の情報を出力する機能が備わっているが、この機能を構造体で使えるようにするには、明示的な選択をする必要がある。構造体の直前に`#[derive(Debug)]`という注釈を追加する。
+```rust
+#[derive(Debug)]
+struct Rectangle {
+    width: u32,
+    height: u32,
+}
+
+fn main() {
+    let rect1 = Rectangle { width: 30, height: 50 };
+
+    println!("rect1 is {:?}", rect1);
+}
+```
+```rect1 is Rectangle {
+    width: 30,
+    height: 50
+}
+```  
+## メソッド記法
+メソッドとは型に基づいた関数であり`."関数"()`のようにドットで呼び出される関数である。`"String"型.len()`もメソッド記法の一つである。
+```rust
+use std::io;
+#[derive(Debug)]
+struct Rectangle{
+  width:u32,
+  height:u32,
+}
+
+impl  Rectangle{
+  fn area(&self)->u32{
+    self.width*self.height
+  }
+}
+
+fn main(){
+  let rect1=Rectangle{width:30,height:50};
+
+  println!{"{}",rect1.area()};
+}
+```  
+構造体の文脈内で関数を定義するには`imple (構造体)`で始める。それから`area`関数を作成するが、引数に`&self`とすることで`Rectangle`型の借用をする。もし`&`をつかない`self`の場合は所有権を奪うメソッドになる。このテクニックは通常、メソッドが`self`を何か別のものに変形し、変形後に呼び出し元が元のインスタンスを使用できないようにしたい場合に使用される。またメソッド内で変更をしたい場合は引数に`&mut self`をとることで変更を受け付けることが出来る。  
+### `->`演算子は？  
+CとC++では、メソッド呼び出しには2種類の異なる演算子が使用される。オブジェクトに対して直接メソッドを呼び出すなら`.`を使用するし、オブジェクトのポインタに対してメソッドを呼び出し、先にポインタを参照外しする必要があるなら`->`を使用する。`object`がポインタなら、`object->something()`と`(*object).something()`は同等である。  
+Rustには`->`演算子の代わりはない。ただ**自動参照および参照外し**という機能がある。`object.something()`メソッドを呼び出すと、コンパイラは`object`メソッドのシグニチャと合致するように、自動で`&`か`&mut`、`*`を付与する。
+```
+p1.distance(&p2);
+(&p1).disance(&p2);
+```
+は同じもの。受け手とメソッド名が与えられればコンパイラは確実にメソッドが読み込み専用`(&self)`か、所有権を奪う`(self)`のか、書き込みもする`(&mut self)`のかを判断する。  
+### 引数が複数のメソッド  
+```rust
+use std::io;
+#[derive(Debug)]
+struct Rectangle{
+  width:u32,
+  height:u32,
+}
+
+impl  Rectangle{
+  fn can_hold(&self,other:&Rectangle)->bool{
+    self.width>other.width&&self.height>other.height
+  }
+
+  fn compare_area(&self,other:&Square)->bool{
+    self.width*self.height>other.length*other.length
+  }
+}
+
+#[derive(Debug)]
+struct Square{
+  length:u32,
+}
+
+fn main(){
+  let mut rect1=Rectangle{width:30,height:50};
+  let mut rect2=Rectangle{width:40,height:60};
+  let mut square1=Square{length:40};
+  println!("{}",rect1.can_hold(&rect2));
+  println!("{}",rect1.compare_area(&square1));
+}
+```
+別のインスタンスを不変借用したい場合は第2引数に`other:&(構造体名)`と書く。  
+### 関連関数    
+`impl`ブロックではブロック内に`self`を引数に取らない関数を定義できる。これは構造体に関連付けられているため**関連関数**と呼ばれる。関連関数は関数であり、メソッドではない。関連関数は、構造体の新規インスタンスを返すコンストラクタに良く使用される。たとえば長さと幅両方を同じ長さの`Rectanle`を生成したい場合は
+```rust
+impl Rectangle{
+  fn square(size:u32)->Rectangle{
+    Rectangle{width:size,height:size}
+  }
+}
+fn main(){
+  let sq=Rectangle::square(3);
+}
+```  
+と記述する。関連関数を呼び出すために`::`記法を使用する。
