@@ -1132,3 +1132,91 @@ let y: Option<i8> = Some(5);
 let sum = x + y;
 ```
 これはエラーになる。このように、プログラマーはnullの可能性がある値を使用する前に、nullであることをチェックする必要はない。プログラマーは`Option<T>`があるときのみ、値を保持していない可能性を考慮する必要があるわけで、コンパイラが確かめてくれる。
+## match制御フロー演算子  
+Rustには一連のパターンに対して値を比較し、マッチしたパターンに応じてコードを実行させてくれる`match`という制御フロー演算子がある。例えばコインの価値をセントで返す関数を実装する
+```rust
+use std::io;
+enum Coin{
+  Penny,
+  Nickel,
+  Dime,
+  Quater,
+}
+fn main(){
+  let coin=Coin::Penny;
+  println!("{}",value_in_cents(coin));
+}
+
+fn value_in_cents(coin:Coin)->u32{
+  match coin{
+    Coin::Penny=>{
+      println!("Lucky penny!");
+      1
+    },
+    Coin::Nickel=>5,
+    Coin::Dime=>10,
+    Coin::Quater=>25,
+    //一つでも列挙子がかけているとエラーになる
+  }
+}
+```
+`match`式が実行されると、結果の値を各アームのパターンと順番に比較する。パターンに値がマッチしたら、そのコードに紐づけられたコードが実行される。
+```rust
+#[derive(Debug)] // すぐに州を点検できるように
+enum UsState {
+    Alabama,
+    Alaska,
+    // ... などなど
+}
+
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter(UsState),
+}
+```
+このような列挙型があったとする。
+```rust
+fn value_in_cents(coin: Coin) -> u32 {
+    match coin {
+        Coin::Penny => 1,
+        Coin::Nickel => 5,
+        Coin::Dime => 10,
+        Coin::Quarter(state) => {
+            println!("State quarter from {:?}!", state);
+            25
+        },
+    }
+}
+```
+このように列挙子が持つデータを`match`式で扱うことが出来る。`value_in_cents(Coin::Quater(UsState::Alaska))`というように呼び出すことが出来る。    
+### `Option<T>`とのマッチ  
+`match`を使って`Option<T>`を扱うこともできる。基本的に`match`式の動作の使用は同じ。`Optino<i32>`を取る関数を描きたくなったとし、中に値があったら、その値に1を加えることにする。
+```rust
+use std::io;
+fn main(){
+  let five=Some(5);
+  let six=plus_one(five);
+  let none=plus_one(None);
+}
+
+fn plus_one(x:Option<i32>)->Option<i32>{
+  match x{
+    None=>None,
+    Some(i)=>Some(i+1),
+  }
+}
+```
+値が`None`のときはなにもしないから`None`を返す。`Some`のときは`i`は`Some`に含まれる値に束縛され、`i`の値に1が足され新しい`Some`を生成する。`match`は包括的でなければならないため`None`、`Some`どれか一つでもアームが抜けているとエラーになる。Rustではすべてのあらゆる可能性を網羅しつくさなければ、コードは有効にならない。すべての可能性を列挙したくないときは`_`のパターンを使用できる。
+```rust
+use std::io;
+fn main(){
+  let k=2;
+  match k{
+    1=>println!("one"),
+    3=>println!("three"),
+    _=>(),
+  }
+}
+```
