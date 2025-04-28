@@ -1,31 +1,20 @@
 use std::io;
-#[derive(Debug)]
-struct Rectangle{
-  width:u32,
-  height:u32,
+enum Message{
+  Quit,
+  Move{x:i32,y:i32},
+  Write(String),
+  ChangeColor(i32,i32,i32),
 }
 
-impl  Rectangle{
-  fn can_hold(&self,other:&Rectangle)->bool{
-    self.width>other.width&&self.height>other.height
-  }
-
-  fn compare_area(&self,other:&Square)->bool{
-    self.width*self.height>other.length*other.length
+impl Message{
+  fn call(&self){
+    //code
   }
 }
 
-#[derive(Debug)]
-struct Square{
-  length:u32,
-}
-
-impl Rectangle{
-  fn square(size:u32)->Rectangle{
-    Rectangle{width:size,height:size}
-  }
-}
 fn main(){
-  let sq=Rectangle::square(3);
+  let m=Message::Write(String::from("hello"));
+  m.call();
 }
+
 

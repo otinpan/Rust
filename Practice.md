@@ -1051,3 +1051,57 @@ fn main(){
 }
 ```  
 と記述する。関連関数を呼び出すために`::`記法を使用する。
+## 列挙型
+列挙子とは「列挙型の中で定義される個々の定数」のことである。例えばIPアドレスを扱う必要が出たとする。現在IPアドレスの規格はバージョン4とバージョン6の2つがある。どんなIPアドレスも、バージョン4かバージョン6のどちらかになるが、同時に両方になることはない。このように、いくつかの成分の中からどれかの状態である、といった場合はenumデータ構造が適切なものになる。  
+```rust
+use std::io;
+enum IpAddrKind{
+  V4,  //列挙子
+  V6,
+}
+fn main(){
+  let four=IpAddrKind::V4;  //インスタンス
+  let six=IpAddrKind::V6;
+}
+fn route(ip_type:IpAddrKind){
+  
+}
+```  
+これで`IpAddrKind`はコードの他の場所で使用できる独自のデータ型になる。enumの列挙子は関数の引数としても使える。現状では実際のIPアドレスのデータを保存する方法はない。そこでenumの列挙子に直接データを格納して、IPアドレスを保存する。  
+実際IPアドレスを格納してその種類をコード化したくなるということは一般的であり、Rustの標準ライブラリに使用可能な定義が存在する。`IpAddr`の定義のされ方を見てみる。  
+```rust
+struct Ipv4Addr {
+    // 省略
+}
+
+struct Ipv6Addr {
+    // 省略
+}
+
+enum IpAddr {
+    V4(Ipv4Addr),
+    V6(Ipv6Addr),
+}
+```  
+このように構造体を列挙子に埋め込むことも可能。  
+```rust
+use std::io;
+enum Message{
+  Quit,
+  Move{x:i32,y:i32},
+  Write(String),
+  ChangeColor(i32,i32,i32),
+}
+
+impl Message{
+  fn call(&self){
+    //code
+  }
+}
+
+fn main(){
+  let m=Message::Write(String::from("hello"));
+  m.call();
+}
+```
+また、enumは構造体のように`impl`をつかって構造あいにメソッドを定義できるのと同様にメソッドを定義することが出来る。
