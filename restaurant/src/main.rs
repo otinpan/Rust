@@ -1,4 +1,4 @@
-use restaurant::hello;
+use restaurant::eat_at_restaurant;
 fn main(){
-    hello();
+    eat_at_restaurant();
 }

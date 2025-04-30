@@ -1505,3 +1505,49 @@ use std::io::{self, Write};
 ```rust
 use std::collections::*;
 ```
+## モジュールを複数のファイルに分割する  
+今までは複数のモジュールを一つのファイルに定義していた。モジュールが大きくなるとき、コードを読みやすくするため、これらの定義を別のファイルへ移動させたくなるかもしれない。例えば`src/front_of_house.rs`に`hosting`モジュールが定義されているとする。クレートルートファイルは`src/lib.rs`であるため、ここにまとめる必要がある。これは`src/main.rs`でも構わない。
+```
+restaurant/
+├── Cargo.toml
+└── src/
+    ├── main.rs         // eat_at_restaurant を呼び出す
+    ├── lib.rs          // ライブラリの定義
+    └── front_of_house  //hostingモジュールの定義
+```
+`front_of_house`    
+```rust
+pub mod hosting{
+    pub fn add_to_waitlist(){
+        println!("Hello");
+    }
+}
+```
+`lib.rs`  
+```rust
+mod front_of_house;
+
+pub use crate::front_of_house::hosting; //pub出なくても通る
+
+pub fn eat_at_restaurant(){
+    hosting::add_to_waitlist();
+}
+```  
+main.rs
+```rust
+use restaurant::eat_at_restaurant;
+fn main(){
+    eat_at_restaurant();
+}
+```  
+`lib.rs`のように`mod front_of_house`の後にブロックではなくセミコロンを使うと、Rustにモジュールの中身をモジュールと同じ名前をした別のファイルから読み込むように命令する。
+```
+restaurant/
+├── Cargo.toml
+└── src/
+    ├── main.rs         // eat_at_restaurant を呼び出す
+    ├── lib.rs          // ライブラリの定義
+    └── front_of_house  //hostingモジュールの定義 
+        ├── hosting.rs  //pub fn add_to_waitlist(){...}
+```
+このようにファイル自体をモジュールとして扱うこともできる。
