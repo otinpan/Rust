@@ -1219,4 +1219,171 @@ fn main(){
     _=>(),
   }
 }
+``` 
+## パッケージとクレート
+クレートはバイナリかライブラリのどちらかで、**クレートルート**とは、Rustコンパイラの開始点となり、クレートのルートモジュールをつくるソースファイルのこと。**パッケージ**はある機能群を提供する1つ以上のクレートである。パッケージは**Cargo.toml**という、それらのクレートをどのようにビルドするかを説明するファイルを持っている。  
+パッケージが何を持ってよいかはいくつかのルールで決まっている。まず、パッケージは0個か、1個のライブラリクレートを持っていないといけない。2個以上はだめ。バイナリクレートはいくつ持っても良い。パッケージを作ると  
+```rust
+$ cargo new my-project
+     Created binary (application) `my-project` package
+$ ls my-project
+Cargo.toml
+src
+$ ls my-project/src
+main.rs
+```  
+Cargoは`Cargo.toml`ファイルを作り、`src/main.rs`をつくる。`Cargo.toml`は特に`src/main.rs`については何も書かない。これはCragoは`src/main.rs`がパッケージと同じ名前を持つバイナリクレートのクレートルートであるという習慣に従ているためである。同じようにCargoはパッケージディレクトリに`src/librs`が含まれていたら、パッケージにはパッケージと同じ名前のライブラリクレートが含まれており、`src/lib.rs`がそのクレートルートなのだと判断する。Cargoはクレートルートファイルを`rstc`に渡し、ライブラリやバイナリをビルドする。
+```
+my_project/
+├── Cargo.toml
+├── src/
+│   └── lib.rs
+└── src/bin/
+    ├── tool1.rs   ← バイナリクレート1
+    └── tool2.rs   ← バイナリクレート2
+```
+このようにパッケージはバイナリクレートは複数持つことが出来るが、ライブラリライブラリクレートは0か1つである。パッケージを作った直後ではライブラリクレートなく、バイナリクレートは`src/main.rs`の1つである。  
+例えば`rand`ライブラリを外部から呼び出したとする。クレートの機能をそれ自身のスコープの中に入れておくことで、ある機能が自分のクレートで定義されたのか`rand`クレートで定義されたのかを明確にし、名前の衝突を予防してくれる。例えば自分のクレートで`Rng`という名前の`struct`を定義することもできる。`rand`を依存先としてつかしても、コンパイラは`Rng`という名前が何を意味するかについて混乱することはない。`rand`クレートの`Rng`トレイとには`rand::Rng`でアクセスするということである。  
+## モジュールシステム  
+**モジュール**はクレート内のコードをグループ化し、可読性と再利用性を上げるのに役に立つ。また、モジュールは**public**と**private**を使い分けることで**プライバシー制御**も行える。  
+``restaurant`という新しい名前のライブラリを`cargo new --lib restaurant`と実行することで作成し、**`src/lib.rs`**に書き込む、モジュールと関数のシグネチャを定義する。
+```rust
+mod front_of_house {
+    mod hosting {
+        fn add_to_waitlist() {}
+
+        fn seat_at_table() {}
+    }
+
+    mod serving {
+        fn take_order() {}
+
+        fn serve_order() {}
+
+        fn take_payment() {}
+    }
+}
+```  
+モジュールは`mod`キーワードを書き、次にモジュールの名前を指定することで定義される。モジュールの中には他のモジュール、構造体、enum、定数、トレイと、関数を置くことが出来る。  
+**`src/main.rs`**と**`src/lib.rs`**はクレートルート**と呼ばれている。この名前の訳は、**モジュールツリー**と呼ばれるクレートのモジュール構造の根っこにこれら2つのファイルの中身が`crate`というモジュールを形成するからである。
+```
+crate
+ └── front_of_house
+     ├── hosting
+     │   ├── add_to_waitlist
+     │   └── seat_at_table
+     └── serving
+         ├── take_order
+         ├── serve_order
+         └── take_payment
+```
+### モジュールツリーの要素を示すためのパス  
+パスは2つの形を取ることが出来る
+* **絶対パス**はクレートの名前か`crate`という文字列を使うことで、クレートルートからスタートする。
+* **相対パス**は`self`、`super`または今のモジュール内の識別子を使うことで、現在のモジュールからスタートする。
+```rust
+mod front_of_house {
+    mod hosting {
+        fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant(){
+    //絶対パス
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    //相対パス
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+絶対パスで指定する場合は`crate`キーワードで絶対パスを始めることが出来る。これはファイルシステムに置き換えると`/front_of_house/hosting/add_to_waitlist`にに相当する。`/`は`crate`に対応する。  
+相対パスの場合は`eat_at_restaurant()`はと同じ階層で定義されているモジュールである`front_of_house`からスタートする。ファイルシステムにおける`front_of_house/hosting/add_to_waitlist`に相当する。  
+相対パスか、絶対パスを使うかはプロジェクトによって決める。例えば、`front_of_house`モジュールと`eat_at_restaurant`関数を`customer_experience`というモジュールに移動させると、`add_to_waitlist`への絶対パスを更新しないといけないが、相対パスはそのままである。しかし、`eat_at_restaurant`関数だけを`dining`というモジュールに移動察せると、`add_to_waitlist`への絶対パスは同じままだが相対パスは更新しないといけない。  
+実際上のコードをコンパイルしてみると、エラーになる。メッセージによると`hosting`は非公開だと言っている。Rustにおけるプライバシーは「あらゆる要素は標準では非公開」というやり方で動いている。親モジュールの要素は子モジュールの非公開要素を使えないが、子モジュールの要素は祖先モジュールの要素を使える。
+```rust
+mod front_of_house {
+    pub mod hosting {
+        fn add_to_waitlist() {}
+    }
+}
+
+pub fn eat_at_restaurant() {
+    // Absolute path
+    // 絶対パス
+    crate::front_of_house::hosting::add_to_waitlist();
+
+    // Relative path
+    // 相対パス
+    front_of_house::hosting::add_to_waitlist();
+}
+```
+ではこれではどうか。これでもエラーになる。`hosting`は公開されたが、中身はまだ非公開。モジュールに`pub`キーワードがついていても、先祖モジュールのコードはモジュールを参照できるようになるだけである。
+```rust
+mod front_of_house {
+    pub mod hosting {
+        pub fn add_to_waitlist() {}
+    }
+}
+```
+このように関数にも`pub`をつけることでモジュールの外から呼び出すことが出来る。
+### 相対パスをsuperで始める
+靄モジュールから始まる相対パスなら、`super`を最初につけることで交際できる。ファイルシステムの`..`に似ている。
+```rust
+fn serve_order(){}
+
+mod back_of_house {
+    fn fix_incorrect_order(){
+        cook_order();
+        super::serve_order();
+    }
+    fn cook_order(){}
+
+    mod cookware{
+        fn get_cookware(){
+            super::super::serve_order();
+        }
+    }
+}
+```
+将来このコードが別のモジュールに移動するとしても更新する場所が少なくて済む。
+### 構造体とenumを公開する
+構造体とenumにおいても`pub`を使って公開するよう指定できるが、追加の細目がある。
+```rust
+mod back_of_house{
+    pub struct Breakfast{
+        pub toast:String,
+        seasonal_fruit:String,
+    }
+
+    impl Breakfast{
+        pub fn summer(toast:&str)->Breakfast{
+            Breakfast{
+                toast:String::from(toast),
+                seasonal_fruit:String::from("peaches"),
+            }
+        }
+    }
+}
+
+pub fn eat_at_restaurant(){
+    let mut meal=back_of_house::Breakfast::summer("Rye");
+
+    meal.toast=String::from("Wheat");
+    println!("{}",meal.toast);
+}
+```
+構造体を`pub`にするだけではフィールドは公開されない。それぞれのフィールドで`pub`を設定する必要がある。  
+enumの場合公開するとそのヴァリアントはすべて公開される。
+```rust
+mod back_of_house {
+    pub enum Appetizer {
+        Soup,
+        Salad,
+    }
+}
+
+pub fn eat_at_restaurant() {
+    let order1 = back_of_house::Appetizer::Soup;
+    let order2 = back_of_house::Appetizer::Salad;
+}
 ```
