@@ -1387,3 +1387,121 @@ pub fn eat_at_restaurant() {
     let order2 = back_of_house::Appetizer::Salad;
 }
 ```
+### useキーワードでパスをスコープに持ち込む  
+これまで関数呼び出しのために書いてきたパスは、長く、繰り返しも多くて不便なものだった。例えば絶対パス、相対パスを使うかに関わらず、`add_to_waitlist`関数を予防と思うたびに`front_of_house`と`hosting`も指定しないといけない。これを簡単化する方法が`use`キーワードである。これはパスをスコープに持ち込み、それ以降はパス内の要素がローカルにあるかのように呼び出すことができる。
+```rust
+mod front_of_house{
+    pub mod hosting{
+        pub fn add_to_waitlist(){
+            ////
+        }
+    }
+}
+
+use crate::front_of_house::hosting;
+
+pub fn eat_at_restaurant(){
+    hosting::add_to_waitlist();
+    hosting::add_to_waitlist();
+}
+```  
+`use`と相対パスで要素をスコープに持ち込むこともできる。その場合は`use self::front_of_house::hosting`と書き換える。では`hosting`も省略したい場合、`use crate::front_of_house::hosting::add_to_waitlist;`にすればいいと思うだろう。これは慣例的ではない。このように書いたとき、この関数がどこで定義されたのかが不明瞭である。ただ構造体やenum、その他の要素を`use`で持ち込むときは古パスを描くのが慣例的である。
+```rust
+use std::collections::HashMap;
+
+fn main() {
+    let mut map = HashMap::new();
+    map.insert(1, 2);
+}
+```
+### エイリアス  
+Rustでは同じ2つの要素を`use`でスコープに持ち込むことはゆるされていない。そのとき、上記の慣例は例外的に不可能。
+```rust
+use std::fmt;
+use std::io;
+
+fn function1()->fmt::Result{
+
+}
+
+fn function2()->io::Result<()>{
+    
+}
+```  
+このように、親モジュールを使うことで2つの`Result`型を区別できる。もし`use std::fmt::Result`と`use std::io::Result`と書いていたら、２つの`Result`型が同じスコープに存在することになり、私たちが`Result`を使ったときにどちらのことを意味しているかRustは分からなくなってしまう。同じ2つの型を`use`を使って同じスコープに持ち込むという問題には、もう1つ解決策がある。パスの後に、`as`と型の新しいローカル名、すなわちエイリアスを指定すればよい。
+```rust
+use std::fmt::Result;
+use std::io::Result as IoResult;
+
+fn function1() -> Result {
+    // --snip--
+}
+
+fn function2() -> IoResult<()> {
+    // --snip--
+}
+```
+
+### pub use  
+`pub use`はRustにおいてモジュールやクレート内の項目を外部に再公開するための構文である。  
+`pub use`の目的
+1. 内部モジュール構造を隠しつつ、必要なものだけ外部に公開したい
+2. APIを整理して使いやすくしたい
+3. 複数のモジュールにまたがるものをまとめたい  
+
+```rust
+mod a{
+    pub fn hello(){
+        println!("Hello from a");
+    }
+}
+
+pub use a::hello;
+```  
+```rust
+use restaurant::hello;
+fn main(){
+    hello();
+}
+```
+またクレートの中身を一括で再公開することもできる
+```rust
+// lib.rs
+pub use crate::module_a::*;
+pub use crate::module_b::*;
+```
+`use`ｈスコープ内で使えるようになるだけ。`pub use`は他のモジュールや外部からも使えるようになる。
+### 外部のパッケージを使う  
+外部のパッケージを使う場合、**Caargo.toml**にパッケージ情報を持ち込む必要がある。また`use`をつかって要素をクレートからスコープへ持ち込めばよい。標準ライブラリ(`std`)に限ってはCargo.tomlに変更を加える必要はない。
+### 巨大なuseのリストをネストしたパスを使って整理する
+同じクレートか同じモジュールで定義された複数の要素を使おうとするとき、それぞれの要素を一行一行並べると、縦に大量のスペースを取ってしまう。
+```rust
+// --snip--
+// （略）
+use std::cmp::Ordering;
+use std::io;
+// --snip--
+// （略）
+```
+ネストしたパスを使うことで、同じ一連の要素を1行でスコープに持ち込める。
+```rust
+// --snip--
+// （略）
+use std::{cmp::Ordering, io};
+// --snip--
+// （略）
+```  
+```rust
+use std::io;
+use std::io::Write;
+```
+この場合2つのパスの共通部分は`std::io`である。この場合は
+```rust
+use std::io::{self, Write};
+```
+と`self`を使えばよい。
+### glob演算子
+パスにおいて定義されているすべての公開要素をスコープに持ち込みたいときは`glob`演算子`*`をパスの後ろに続けてかく。
+```rust
+use std::collections::*;
+```
