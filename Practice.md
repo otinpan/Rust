@@ -1551,3 +1551,296 @@ restaurant/
         ├── hosting.rs  //pub fn add_to_waitlist(){...}
 ```
 このようにファイル自体をモジュールとして扱うこともできる。
+## ベクタ
+`Vec<T>`は**ベクタ**とよばれ、単体のデータに複数の値を保持する。ベクタでは値をメモリ上に隣り合わせに並べる。またそれらの値は同じ型である必要がある。
+### ベクタの生成
+```rust
+let v:Vec<i32> =Vec::new()
+```
+これによって`i32`型の空のベクタを生成する。型注釈をつけないとコンパイラは私たちがどんなデータを保持するか推測できない。もし値を初期化時に挿入する場合は型はコンパイラによって推測される
+```rust
+let v=vec![1.2,3.1,4.1];  //f64型
+```
+### ベクタの更新
+配列とは違い、ベクタは長さを変更することが出来る。ただ、値を変更したかったり、長さを変化させたい場合は`mut`をつける必要がある。また、型を初期値と同じようにする必要がある  
+```rust
+  let mut v=vec![1,2,3];
+  v.push(4);
+  v.push(5);
+  v.push(6);
+```  
+ベクタは変数と同じようにスコープを抜けるとドロップされる。ベクタのすべての要素が解放される。
+### ベクタの要素を読む
+```rust
+    let v = vec![1, 2, 3, 4, 5];
+
+    let third: &i32 = &v[2];
+    println!("The third element is {}", third);
+
+    match v.get(2) {
+        //                      "3つ目の要素は{}です"
+        Some(third) => println!("The third element is {}", third),
+        //               "3つ目の要素はありません。"
+        None => println!("There is no third element."),
+    }
+```
+ベクタの要素を読む方法は主に2つある
+1. 参照を得る`let third:&i32=&v[2]`
+2. `get`メソッドに引数として添え字を渡して`Option<T>`を得る  
+
+1の場合参照を得るため、所有権は移動しない。2の場合も引数に参照(`&i32`)を渡しているため所有権は移動しない。`Option<&T>`で得るため、ベクタの長さを越えた要素にアクセスしようとしても`None`を得るだけである。もし参照を使用した場合はプログラムはクラッシュする。  
+1.2の方法は要素を変数から参照するため参照規則は適用される
+* ある特定のデータに対しては1つしか可変な参照を持てない(一人で編集)  
+* 可変と不変の参照を組み合わせることが出来ない(読んでいる間に勝手に変えられる!危ない!)  
+* 不変な参照をしている間は可変な参照をすることはできない(みんなで読むだけ)  
+* 参照をしている間は元の変数に直接アクセスしてはいけない(編集するから元のもの持ってくな)  
+
+### 可変な参照
+```rust
+fn main(){
+  let mut v=vec![1,2,3,4,5];
+  let first=&mut v[0];
+
+  *first=2;
+  println!("{}",v[0]);
+}
+```  
+ベクタでも可変な参照はできる。`first`は可変な参照で、`v`の0番目のアドレスを示している(?)。では1つのベクタに2つの可変な参照変数が存在するときどのようになるでしょう。
+```rust
+  let mut v=vec![1,2,3,4,5];
+  let first=&mut v[0];
+  let second=&mut v[2];
+
+  *first=2;
+  *second=10;
+```
+これはエラーになる。一つのデータ(ベクタ)に対して2つの可変な参照は規則に反している。では次はどうだろう
+```rust
+  let mut v=vec![1,2,3,4,5];
+  let first=&mut v[0];
+  *first=0;
+  v.push(6);
+```
+これは通る。
+1. `first`は`v`のアドレスをもつ
+2. `first`の参照先のデータが変更される
+3. もとのデータ`v`が変更される  
+
+これは何も問題がない。では少し変更を加える。
+```rust
+  let mut v=vec![1,2,3,4,5];
+  let first=&mut v[0];
+  v.push(6);
+  *first=0;
+```
+これはエラーになる。
+1. `first`は`v`のアドレスをもつ
+2. もとのデータ`v`が変更される
+3. `first`は参照先のデータを変更する
+なぜエラーになるのだろうか。それは元のデータ`v`が変更されることによって、データを保存するスペースがなくなり、新しいスペースに移動する可能性があるからである。もしそうなった場合、`first`は解放されたメモリを指すことになる。そのようなことを未然に防ぐため借用規則が設けられている。  
+### ベクタ内の値を順番に処理する  
+```rust
+  for i in &v{
+    println!("{}",i);
+  }
+
+  for i in &mut v{
+    *i+=50;
+  }
+```
+ベクタ内の値を順に見ていく場合は、不変な参照を得る。ベクタ内の値を変化させたい場合は可変な参照をとり、参照外し演算子(`*`)を使用して、`i`の値にたどり着く必要がある。
+
+### EnumとVector  
+```rust
+    enum SpreadsheetCell {
+        Int(i32),
+        Float(f64),
+        Text(String),
+    }
+
+    let row = vec![
+        SpreadsheetCell::Int(3),
+        SpreadsheetCell::Text(String::from("blue")),
+        SpreadsheetCell::Float(10.12),
+    ];
+```
+ベクタは同じ型の値しか保持できない。ただ、enumを用いればenum型をつかって整数型、浮動小数点、文字列、構造体などを組み合わせることが出来る。
+
+## 文字列
+文字列は思っているよりも複雑なデータ構造である。「文字列」とは一般的に`String`と文字列スライスの`&str`のことを意味する。ただ言語の核としては1種類しか文字列型は存在しない。文字列スライスの`&str`は、別の場所に格納されたUTF-8エンコードされた文字列データへの参照である。`String`型はRustの標準ライブラリで提供され、伸長可能、可変、所有権のあるUTF-8エンコードされた文字列型である。
+### 文字列の生成
+空の文字列を生成したい場合は`new`関数から始める。
+```rust
+let mut s=String::new();
+```
+文字列リテラルを`String`型にするには`String::from()`と`.to_string()`を使うことが出来る。適切にエンコードされた文字列なら、どんなものでも有効である。
+### 文字列の更新
+`push_str`を使うことで`String`を伸ばすことが出来る。
+```rust
+let mut s1 = String::from("foo");
+let s2 = "bar";
+s1.push_str(s2);
+println!("s2 is {}", s2);
+```
+これはエラーになるだろうか。これはならない。`push_str()`では引数の参照をとり、所有権までは奪わない。`s2`は有効なままである。`push()`は文字列ではなく、文字型を追加するときに有効である。`String`型の2つの変数を合体させたいときに簡単な記法として+演算子を使うことがある。
+```rust
+  let s1=String::from("I ");
+  let s2=String::from("have ");
+  let s3 =String::from("a pen.");
+
+  let s=s1+&s2+&s3;
+  println!("{}",s);
+  //println!("{}",s1); //所有権は奪われている!
+  println!("{}",s2);
+```
+なぜ第2引数に参照を指定する必要があるのか。それは+演算子を使用したときに呼び出される`add`メソッドに関係がある。
+```rust
+fn add(self, s: &str) -> String {
+```
+`add`メソッドでは第二引数に文字列スライス型を指定する。コンパイラは`&String`型を`&str`に**型強制**してくれる。  
+もし文字列を連結して表示させたいときは`format!()`が有効である。
+```rust
+let s1 = String::from("tic");
+let s2 = String::from("tac");
+let s3 = String::from("toe");
+
+let s = format!("{}-{}-{}", s1, s2, s3);
+```
+### 文字列の添え字にアクセスする
+```rust
+let s1 = String::from("hello");
+let h = s1[0];
+```
+これはエラーになる。ではなぜでしょう。  
+まずUTF-8の要点は、Rustの文字列を見るには3つの関連した文法があることである。バイト、スカラー地、書記素クラスタである。ヒンディー語の単語“नमस्ते”を表記する。
+バイトとしては
+```
+[224, 164, 168, 224, 164, 174, 224, 164, 184, 224, 165, 141, 224, 164, 164,
+224, 165, 135]
+```
+スカラー値としては
+```
+['न', 'म', 'स', '्', 'त', 'े']
+```
+書記素クラスタとしては
+```
+["न", "म", "स्", "ते"]
+```
+である。このように1文字が1バイトとは限らないため`s1[0]`のように「0番目のバイトが1文字の意味を持つ」と保証できないのである。　　
+文字列から1文字取り出したいときは以下のように書く
+```rust
+let s1 = String::from("hello");
+let h = s1.chars().nth(0);   //Option<chat>になる
+if let Some(c) = s1.chars().nth(0) {
+    println!("First char: {}", c);
+}
+```
+
+## ハッシュマップ  
+`HashMap<k,V>`は`K`型のキーと`V`型の値の対応関係を保持する。例えば、ゲームにおいて各チームのスコアをハッシュマップで追いかけることができる。
+### ハッシュマップの生成
+```rust
+use std::io;
+use std::collections::HashMap;
+fn main(){
+  let mut scores = HashMap::new();
+
+  scores.insert(String::from("Blue"),10);
+  scores.insert(String::from("Yellow"),50);
+
+  println!("{}",scores["Blue"]);
+}
+```
+まず標準ライブラリのコレクション部分から`HashMap`を`use`する必要がある。ベクタと同様にハッシュマップはデータをヒープに保持する。この`HashMap`はキーが`String`型、値が`i32`型ですべて同じ型でなければならない。べつの方法もある。それはメソッドを使うことである。
+```rust
+use std::io;
+use std::collections::HashMap;
+fn main(){
+  let teams=vec!['i','j','k'];
+  let scores=vec![10,30,20];
+
+  let res:HashMap<_,_>=teams.iter().zip(scores.iter()).collect();
+
+  println!("{}",res[&'i']);
+}
+```  
+別々のベクタに対して`zip`メソッドでタプルのベクタを作り上げる。それから`collect`メソッドをつかって、タプルのベクタをハッシュマップに変換する。
+### ハッシュマップと所有権  
+```rust
+　let mut map=HashMap::new();
+  let name='i';
+  let score=10;
+
+  map.insert(name,score);
+```
+この場合、`name`と`score`は有効なのだろうか。有効でない。データの所有権っは`map`に映ったからである。
+### ハッシュマップの値にアクセスする
+```rust
+use std::io;
+use std::collections::HashMap;
+fn main(){
+  let mut map=HashMap::new();
+  map.insert(String::from("Blue"),10);
+  map.insert(String::from("Red"),5);
+
+  let team=String::from("Blue");
+  let score=map.get(&team); //Option<T>
+
+  for(key,value) in &map{
+    println!("{},{}",key,value);
+  }
+}
+```
+`HashMap`のデータにアクセスする方法の1つは`get`メソッドを使うことである。これはベクタで扱った時と同じで`Option<&T>`型を返す。そのため、実際の値を表示したい場合は`if let`を使う。別の方法は`for`でキーと値を同時に出すことである。
+### 値の更新
+ハッシュマップ内のデータを変えたいときは、すでにキーに値が紐づいている場合の扱い方を決めなければならない。値の変え方はいくつか方法がある
+1. 値を上書きする
+```rust
+use std::collections::HashMap;
+
+let mut scores = HashMap::new();
+
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Blue"), 25);
+
+println!("{:?}", scores);
+```
+シンプルにかける。
+2. キーに値がなかったときのみ値を挿入する
+```rust
+use std::io;
+use std::collections::HashMap;
+fn main(){
+  let mut map=HashMap::new();
+  map.insert(String::from("Blue"),10);
+
+  map.entry(String::from("Red")).or_insert(50);
+  map.entry(String::from("Blue")).or_insert(30);
+
+  if !(map.contains_key("Yellow")){
+    map.insert(String::from("Yellow"),10);
+  }
+  for x in &map{
+    println!("{:?}",x);
+  }
+}
+```
+`entry`で引数としてチェックしたいキーを取る。このメソッドの元理知は`Entry`と呼ばれるenumであり、これは存在したりしなかったりする可能性のある値を表す。`or_insert`は対応する`Entry`キーが存在したときにそのキーに対する値への可変参照を返すために定義されており、もしなかったら、引数をこのキーの新しい値として挿入し、新しい値への可変参照を返す。
+3. 古い値に基づいて値を更新する
+```rust
+use std::io;
+use std::collections::HashMap;
+fn main(){
+  let text="hello world wonderful world";
+  let mut map=HashMap::new();
+
+  for world in text.split_whitespace(){
+    let count=map.entry(world).or_insert(0);
+    *count+=1;
+  }
+
+  println!("{:?}",map);
+}
+```
+`or_insert`では値の可変参照を返す。その可変参照を`count`変数に保持しているため、その値に代入するには`*`で参照外しをしなければならない。  
+`HashMap`暗号学的に安全なハッシュ関数を使用するため、最速ではない。ただ、パフォーマンスの低下と引き換えに安全性を得るというトレードオフは価値がある。
