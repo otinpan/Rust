@@ -1969,3 +1969,76 @@ fn main() {
 `File::open`が`Err`列挙子に含めて変える値の型は、`io::Error`であり、これは標準ラうぶらりで提供されている構造体である。この構造体には、呼び出すと`io::ErrorKind`値が得られる`kind`メソッドがある。`io::ErrorKind`というeunmは、標準ライブラリで提供されていて、`io`処理の結果発生する可能性のあるいろいろな種類のエラーを表す列挙子がある。使用したい列挙子は、`ErrorKind::Notfound`で、これは開こうとしているファイルがまだ存在しないことを示唆する。  
 `if error.kind()==ErrorKind::Notfound`という条件式は、**マッチガード**と呼ばれる。アームのパターンを更に洗練する`match`アーム乗のおまけの条件式である。この条件式は、そのアームのコードが実行されるには死んでなければいけない。そうでなければ、パターンマッチングは敬是櫛、`match`の次のアームを考慮する。パターンの`ref`は、`error`がガード条件式にムーブされないように必要。参照みたいなもの。  
 マッチガードで精査したい条件は`error.kind()`による返り値が`ErrorKind`eunmの`NotFound`列挙子であるかということである。もしそうなら、`File::create`でファイル作成を試みる。`File::create`も成功したなら`File`型の値を返し、失敗したなら`Error`型の値を返す。
+
+### エラー時にパニックするショートカット
+`match`の使用は十分に仕事を素てくれるが、いささか冗長になるうえ、甘楽図師も意図を良く伝えるとは限らない。`Result<T,E>`型にはいろいろな作業をするヘルパーメソッドが多く定義されている。これらの関数の一つは`unwrap`と呼ばれる。これは`Result`値が`Ok`列挙子なら、`unwrap`は`Ok`の中身を返す。`Result`が`Err`列挙子なら、`unwrap`は`panic!`マクロを読んでくれる。
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").unwrap();
+}
+```
+別のメソッドである`expect`は`unwrap`に似ているが`panic!`のエラーメッセージも選択させてくれる。エラーメッセージはぷっろぐらまが指定できる。
+```rust
+use std::fs::File;
+
+fn main() {
+    // hello.txtを開くのに失敗しました
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+```
+### エラーを委譲する
+失敗する何かを呼び出す実装をした関数を書く際、関数内でエアーを処理する代わりに、呼び出し元がどうするか決められるようにエラーを返すことができる。これはエラーの**委譲**として認知されている。例えば、ファイルからユーザー名を読み取りたい。ファイルが存在しなかったり、読み込みできなければ、関数はエラーを呼び出し元のコードに返す。
+```rust
+use std::fs::File;
+use std::io::{self,Read};
+
+fn main() {
+    read_user_name_from_file();
+}
+
+fn read_user_name_from_file()->Result<String,io::Error>{
+  let f=File::open("hello.txt");
+  let mut f=match f{
+    Ok(file)=>file,
+    Err(e)=>return Err(e),
+  };
+
+  let mut s=String::new();
+
+  match f.read_to_string(&mut s){
+    Ok(_)=>Ok(s),
+    Err(e)=>Err(e),
+  }
+}
+```
+関数の戻り値は`Result<String,io::Error>`である。つまり、この関数は`Result<T,E>`型の値を返している。ここで`T`は具体型`String`で埋められ、`E`は`io::Error`で埋められている。この関数が何も問題なく成功すれば、この関数を呼び出したコードは`String`を保持する`Ok`値を受け取る。なにか問題が有ったら`Err`値を受け取る。戻り値として`io::Error`を選んだのは、この関数で失敗する可能性のある、ファイルの読み込みと文字列の入手がどちらもこの型をエラー値として返すからである。  
+`File::open`でファイルを開く。ファイルが正しく開かれているなら`f`にそのファイルを代入する。もし正しく開かれていないなら`File::open`から呼び出さ鰓たエラー値を返す。次に`String`型の`s`を生成する。そしてファイルの中身を`s`に読みだす。`read_string`が成功したら関数は成功し、`s`に入っている`Sring`を返す。もし失敗したならエラー値を返す。
+
+### `?`演算子
+`?`演算子はエラー委譲のショートカットをしてくれる。`Result`値の足誤飲置かれた`?`は`Result`値を処理するために定義した`match`式とほぼ同じように動作する。`Result`値が`Ok`なら`Ok`の中身が帰ってくるが、値が`Err`なら、`return`キーワードを使った科のように関数全体から`Err`の中身が返ってくる。  
+ただ、`match`式に夜委譲と`?`に夜委譲には違いがある。`?`を使ったエラー値は標準ライブラリの`From`トレイとで定義され、エラーの型を別のものに変換する`from`関数を通る。`?`演算素が`from`関数を呼び出すと、受け取ったエラー型が現在の関数の戻り値型で定義されているエラー型に変換される。
+```rust
+use std::io;
+use std::io::Read;
+use std::fs::File;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut s = String::new();
+
+    File::open("hello.txt")?.read_to_string(&mut s)?;
+
+    Ok(s)
+}
+```
+さらに`?`メソッドを連結することでコードを短くすることができる。ただ、`?`演算子には注意することがある。それは
+**`?`演算子は`Result`を返す関数でしか使用できない**ということである。すなわち
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt")?;
+}
+```
+このようには使えない。
