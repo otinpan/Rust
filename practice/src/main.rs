@@ -1,13 +1,28 @@
-use std::io;
-use std::collections::HashMap;
-fn main(){
-  let text="hello world wonderful world";
-  let mut map=HashMap::new();
+use std::fs::File;
+use std::io::ErrorKind;
 
-  for world in text.split_whitespace(){
-    let count=map.entry(world).or_insert(0);
-    *count+=1;
-  }
+fn main() {
+    let f = File::open("hello.txt");
 
-  println!("{:?}",map);
+    let f = match f {
+        Ok(file) => file,
+        Err(ref error) if error.kind() == ErrorKind::NotFound => {
+            match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => {
+                    panic!(
+                        //ファイルを作成しようとしましたが、問題がありました
+                        "Tried to create file but there was a problem: {:?}",
+                        e
+                    )
+                },
+            }
+        },
+        Err(error) => {
+            panic!(
+                "There was a problem opening the file: {:?}",
+                error
+            )
+        },
+    };
 }
