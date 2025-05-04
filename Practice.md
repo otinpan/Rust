@@ -1847,3 +1847,125 @@ fn main(){
 ```
 `or_insert`では値の可変参照を返す。その可変参照を`count`変数に保持しているため、その値に代入するには`*`で参照外しをしなければならない。  
 `HashMap`暗号学的に安全なハッシュ関数を使用するため、最速ではない。ただ、パフォーマンスの低下と引き換えに安全性を得るというトレードオフは価値がある。
+
+## エラー処理
+Rsutへの信頼性の傾倒はエラー処理にも及ぶ。コンパイラはプログラマにエラーの可能性を知り、コードのコンパイルが通るまでに何かしら対応を行うことを要求してくる。  
+Rustでは大きく2つにエラーは分類される。**回復可能**と**回復不能**なエラーである。回復可能エラーとは、適切な処理を行えば、プログラムを継続することができるエラーである。例えばファイルが見つからなかったりするのは回復可能エラーである。回復不能エラーはメモリ不足、論理的にあり得ない状態、ヌルポインタ参照のような、対処不能であり、エラーが発生した時点でプログラムの事項を中断せざるを得ないエラーである。多くの言語では、2種のエラーを区別することはないが、Rustではこの2種のエラーを区別する。回復可能なエラーには`Result<T,E>`値があり、回復不能なエラーには`panic!`マクロがある。  
+## `panic!`で回復不能なエラー
+`panic!`マクロが実行されるとプログラムは失敗のメッセージを表示し、スタックを巻き戻し掃除して、終了する。これが最もありふれて起こるのは、何かしらのバグが検出されたときであり、プログラマには、動エラーを処理すればよいか明確ではない。  
+**パニックに対してスタックを巻き戻すか異常終了する**  
+標準ではパニックが発生すると、プログラムは**巻き戻しを始める**。つまり、言語がスタックをさかのぼり、遭遇した各関数のデータを片付けるということ。しかし、このさかのぼりと片付けはすべきことが多くなる。対立案は、即座に異常終了して、片付けをせずにプログラムを終了させることである。そうなると、プログラムが使用していたメモリは、OSが片付ける必要がある。プロジェクトにおいて、実行可能ファイルを極力小さくする必要があらばCargo.tomlファイルの適切な[`profile`]欄に`panic='abort'`と追記することで、パニック時に巻き戻しかあ異常終了に切り替えることが出来る。  
+```rust
+fn main() {
+    panic!("crash and burn");  //クラッシュして炎上
+}
+```
+実際に`panic!`マクロを使ってみる。すると
+```
+$ cargo run
+   Compiling panic v0.1.0 (file:///projects/panic)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.25 secs
+     Running `target/debug/panic`
+thread 'main' panicked at 'crash and burn', src/main.rs:2:4
+('main'スレッドはsrc/main.rs:2:4の「クラッシュして炎上」でパニックしました)
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+```
+このようなエラーがdる。どこの行で`panic!`マクロが呼び出されているかを見ることが出来る。`panic!`バックトレースを使用すると問題を起こしているぞ分のコードの箇所を割り出すことが出来る。
+### `panic!`バックトレースを使用する  
+```rust
+fn main() {
+    let v = vec![1, 2, 3];
+
+    v[99];
+}
+```
+ベクタは3つしか要素が存在しないが、100番目の要素にアクセスしようとする。ほかの言語では、この場面でほしいものではないのにも関わらず、まさしく要求したもその返そうとしてくる。メモリがベクタに属して否に野にもかかわらず、ベクタ内のその要素に対応するメモリ上の箇所にあるものを何か返してくる。これは、**バッファー外読み出し**と呼ばれる。これを実行してみると
+```
+$ cargo run
+   Compiling panic v0.1.0 (file:///projects/panic)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.27 secs
+     Running `target/debug/panic`
+thread 'main' panicked at 'index out of bounds: the len is 3 but the index is
+99', /checkout/src/liballoc/vec.rs:1555:10
+('main'スレッドは、/checkout/src/liballoc/vec.rs:1555:10の
+「境界外番号: 長さは3なのに、添え字は99です」でパニックしました)
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+```
+とエラーが出る。バックトレースではパニックに至るまでに呼び出された関数すべての一覧を表示する。バックトレースを表示させたい場合は、`RUST_BACKTRACE=1 cargo run`とコマンドする。`panic!`が呼び出されているところから遡ることで、パニックを起こしている根源を割り出すことが出来る。
+
+## `Result`で回復可能なエラー
+多くのエラーは、プログラムを完全に
+ストップさせるほど深刻ではない。例えば、ファイルを開こうとして、ファイルが存在しないために処理が失敗したら、プロセスを停止するのではなく、ファイルを作成したいことがある。この場合、`Result`型が有効である。
+```rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+`Result`型はこのように定義される。例えばファイルを開きたいときに、そのファイルが存在するかを調べるにはどうすれば良いのでしょう。
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => {
+            // ファイルを開く際に問題がありました
+            panic!("There was a problem opening the file: {:?}", error)
+        },
+    };
+}
+```
+まず`File::open`の戻り値が`Result`型であることを知る必要がある。それは`File::open()`にあえて間違えた型を指定してコンパイラで調べることで知ることができる。実際に`u32`型に代入して調べてみるとこのようなエラーが表示される。
+```
+error[E0308]: mismatched types
+(エラー: 型が合いません)
+ --> src/main.rs:4:18
+  |
+4 |     let f: u32 = File::open("hello.txt");
+  |                  ^^^^^^^^^^^^^^^^^^^^^^^ expected u32, found enum
+`std::result::Result`
+  |
+  = note: expected type `u32`
+  (注釈: 予期した型は`u32`です)
+             found type `std::result::Result<std::fs::File, std::io::Error>`
+  (実際の型は`std::result::Result<std::fs::File, std::io::Error>`です)
+```
+これにより戻り値の型は`Result<T,E>`であることが分かる。`File::open`が成功した場合、変数`f`の値はファイルハンドルを含む`Ok`インスタンスになる。失敗した場合、発生したエラーの種類に関する情報をより多く含む`Err`インスタンスが`f`の値になる。
+### いろいろなエラーにマッチする
+上の例では`File::open`が失敗した理由に関わらず`panic!`する。代わりにしたいことは、失敗理由によって動作を変えることである。ファイルが存在しないために`File::open`が失敗したなら、ファイルを、作成し、その新しいファイルへのハンドルを返したい。他の理由で、`Filr::opne`が失敗したら、`panic!`してほしい。
+```rust
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(ref error) if error.kind() == ErrorKind::NotFound => {
+            match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => {
+                    panic!(
+                        //ファイルを作成しようとしましたが、問題がありました
+                        "Tried to create file but there was a problem: {:?}",
+                        e
+                    )
+                },
+            }
+        },
+        Err(error) => {
+            panic!(
+                "There was a problem opening the file: {:?}",
+                error
+            )
+        },
+    };
+}
+```
+`File::open`が`Err`列挙子に含めて変える値の型は、`io::Error`であり、これは標準ラうぶらりで提供されている構造体である。この構造体には、呼び出すと`io::ErrorKind`値が得られる`kind`メソッドがある。`io::ErrorKind`というeunmは、標準ライブラリで提供されていて、`io`処理の結果発生する可能性のあるいろいろな種類のエラーを表す列挙子がある。使用したい列挙子は、`ErrorKind::Notfound`で、これは開こうとしているファイルがまだ存在しないことを示唆する。  
+`if error.kind()==ErrorKind::Notfound`という条件式は、**マッチガード**と呼ばれる。アームのパターンを更に洗練する`match`アーム乗のおまけの条件式である。この条件式は、そのアームのコードが実行されるには死んでなければいけない。そうでなければ、パターンマッチングは敬是櫛、`match`の次のアームを考慮する。パターンの`ref`は、`error`がガード条件式にムーブされないように必要。参照みたいなもの。  
+マッチガードで精査したい条件は`error.kind()`による返り値が`ErrorKind`eunmの`NotFound`列挙子であるかということである。もしそうなら、`File::create`でファイル作成を試みる。`File::create`も成功したなら`File`型の値を返し、失敗したなら`Error`型の値を返す。
