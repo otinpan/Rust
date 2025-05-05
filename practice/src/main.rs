@@ -1,26 +1,17 @@
 use std::io;
-use practice::{Tweet,NewsArticle,Summary};
+use practice::{Tweet,NewsArticle,Summary,notify};
 
 fn main(){
-  let tweet=Tweet{
-    username:String::from("horse_ebooks"),
-    content:String::from(
-      "Hi"
-    ),
-    reply:false,
-    retweet:false,
-  };
-
-  let news=NewsArticle{
-    headline: String::from("Penguins win the Stanley Cup Championship!"),
-    location: String::from("Pittsburgh, PA, USA"),
-    author: String::from("Iceburgh"),
-    content: String::from(
-        "The Pittsburgh Penguins once again are the best \
-         hockey team in the NHL.",
-    ),
-  };
-  println!("{}",news.summarize());
-  println!("{}",tweet.summarize());
+  
 }
 
+fn largest<T>(list:&Vec<T>)->T{
+  let mut largest=list[0];
+
+  for &item in list{
+    if item>largest{
+      largest=item;
+    }
+  }
+  largest
+}
