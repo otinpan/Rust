@@ -141,3 +141,47 @@ fn main() {
   println!("{}",v[0]);
 ```
 これは？エラーになる。データは`v`から`x`にムーブされた
+
+## ジェネリックなメソッド
+```rust
+use std::io;
+#[derive(Debug)]
+struct Point<T,U>{
+  x:T,
+  y:U,
+}
+
+fn main(){
+  let p1=Point{x:5,y:1.2};
+  let p2=Point{x:"Hello",y:'t'};
+  let p3=p1.mixup(p2);
+
+  println!("{:?}",p3);
+  
+}
+
+impl<T, U> Point<T, U> {
+  fn mixup<V, W>(&self, other: &Point<V, W>) -> Point<T, W> {
+      Point {
+          x: self.x,
+          y: other.y,
+      }
+  }
+}
+```
+`mixup`で引数に参照をとるとエラーになる。`self`や`other`が参照なのに、その中のフィールドをムーブしようとしていることが問題。値をコピーする必要がある。
+```rust
+struct Point<T, U> {
+    x: T,
+    y: U,
+}
+
+impl<T: Copy, U> Point<T, U> {
+    fn mixup<V, W: Copy>(&self, other: &Point<V, W>) -> Point<T, W> {
+        Point {
+            x: self.x,
+            y: other.y,
+        }
+    }
+}
+```

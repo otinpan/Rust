@@ -1,14 +1,26 @@
-use std::fs::File;
-use std::io::{self,Read};
+use std::io;
+use practice::{Tweet,NewsArticle,Summary};
 
-fn main() {
-    let s=read_user_name_from_file();
+fn main(){
+  let tweet=Tweet{
+    username:String::from("horse_ebooks"),
+    content:String::from(
+      "Hi"
+    ),
+    reply:false,
+    retweet:false,
+  };
 
+  let news=NewsArticle{
+    headline: String::from("Penguins win the Stanley Cup Championship!"),
+    location: String::from("Pittsburgh, PA, USA"),
+    author: String::from("Iceburgh"),
+    content: String::from(
+        "The Pittsburgh Penguins once again are the best \
+         hockey team in the NHL.",
+    ),
+  };
+  println!("{}",news.summarize());
+  println!("{}",tweet.summarize());
 }
 
-fn read_user_name_from_file()->Result<String,io::Error>{
-  let mut f=File::open("hello.txt")?;
-  let mut s=String::new();
-  f.read_to_string(&mut s)?;
-  Ok(s)
-}

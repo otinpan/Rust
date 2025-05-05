@@ -2042,3 +2042,298 @@ fn main() {
 }
 ```
 このようには使えない。
+
+## `panic!`すべきかそうでないか
+### `panic`を使うべき場面
+* 不変条件、契約、保証が破られた場合
+* 呼び出し側が明確に間違った使い方をしている場合
+* テスト、プロトタイピング  
+不変条約とは、プログラム上で常に成立しなけらばならない条約のことである。データ構造やオブジェクトの状態に関する制約を表す。
+```rust
+struct Range {
+    start: u32,
+    end: u32,
+}
+```
+`start<=end`であることを不変条約としたい場合、これは常に成り立つようにすべき。条件が破られたらバグの兆候とみなせる。  
+契約とは、関数やモジュールの前提条件、事後条件、不変条件を明確にしどのように使うべきかを定めた約束である。
+```rust
+/// 分母 `denominator` は 0 であってはならない
+fn divide(numerator: i32, denominator: i32) -> i32 {
+    if denominator == 0 {
+        panic!("Division by zero");
+    }
+    numerator / denominator
+}
+```
+この場合前提条件は`denominator!=0`である。この前提条件が破られたときに`panic!`すべきである。  
+保証とは、Rustコンパイラがこの条件は必ず満たされると保証する性能のこと。所有権、借用規則などが該当する。例としては、「可変と不変の借用は同時に存在しないこと」、「`Vec<T>`は内部的に連続したメモリ領域を保証する」などである。  
+またテスト、プロトタイピングでは`unwrap`や`expect`を使って素早く実装し、テスト失敗時に即座にパニックして知らせることは有効である。
+### `Result`を使うべき場面
+* 関数の呼び出し元がエラーに対処できる場合
+* 呼び出し側に選択肢を与えたい場合
+`Result`を使うとより柔軟で健全なAPI設計をすることが出来る。そのため出来れば`Result`を使いたい。
+### 独自の型を作る
+独自の型を作ることでコードをより分かりやすく、堅牢にすることが出来る
+```rust
+use std::io;
+fn main(){
+  let g=Guess::new(3);
+  println!("{}",g.value());
+}
+
+pub struct Guess{
+  value:u32,
+}
+
+impl Guess{
+  pub fn new(value:u32)->Guess{
+    if value<1||value>100{
+      panic!("Guess value must be between 1 and 100,got {}.",value);
+    }
+    Guess{
+      value
+    }
+  }
+
+  pub fn value(& self)->u32{
+    self.value
+  }
+}
+```
+## ジェネリクス
+ジェネリクスとは「型に依存しない汎用的なコードを書くための仕組み」である。  
+### 関数定義
+ベクタから最大値を取りたい。`char`と`i32`の最大値をそれぞれ取りたいときに異なる関数を定義する必要がある。
+```rust
+use std::io;
+fn main(){
+  let num_list=vec![33,43,22,46,100];
+  let char_list=vec!['a','c','r','s','b'];
+
+  println!("{}",largest_i32(&num_list));
+  println!("{}",largest_char(&char_list));
+}
+
+fn largest_i32(list:&Vec<i32>)->i32{
+  let mut largest=list[0];
+
+  for item in list{
+    if item>largest{
+      largest=item;
+    }
+  }
+  largest
+}
+
+fn largest_char(list:&Vec<char>)->char{
+  let mut largest=list[0];
+  for &item in list.iter(){
+    if item>largest{
+      largest=item;
+    }
+  }
+  largest
+}
+```
+ただ、これだとコードを書くのに時間がかかり、エラーも起こりやすい。そこで単独の関数にジェネリックな型引数を導入してこの重複を排除する。これから定義する新しい関数の型を引数にするには、ちょうど関数の値引数のように型引数に名前をつける必要がある。Rustでは慣習的にtypeの省略形である`T`を使用する。  
+関数で使用する際は、コンパイラがその名前の意味を把握できるようにシグニチャでその引数名を宣言しなければならない。また、型引数名を関数シグニチャでしようする差異には、使用する前に型引数名を宣言しなければならない。
+```rust
+fn largest<T>(list:&Vec<T>)->T{
+```
+では次のように`largest`関数を定義するとどうなるか
+```rust
+fn largest<T>(list:&Vec<T>)->T{
+  let mut largest=list[0];
+  for &item in list.iter(){
+    if item>largest{
+      largest=item;
+    }
+  }
+  largest
+}
+```
+これはエラーになる
+```
+13 |     if item>largest{
+   |        ----^------- T
+   |        |
+   |        T
+   |
+help: consider restricting type parameter `T` with trait `PartialOrd`
+```
+注釈は`std::comp::PartialOrd`に触れている。これは**トレイト**である。このエラーは`T`がなりうるすべての可能性のある型に対して動作しないと述べている。本体で型`T`の値を比較したいとき、値が順序付け可能な型のみしか使用できない。比較を可能にするために、標準ライブラリには型に実装できる`std::comp::PartialOrd`トレイトがある。
+### 構造体定義
+構造体でジェネリクスを使用することもできる
+```rust
+use std::io;
+struct Point<T>{
+  x:T,
+  y:T,
+}
+
+fn main(){
+  let integer=Point{x:5,y:10};
+  let float=Point{x:1.0,y:4.2};
+
+  println!("{}",&float.x);
+}
+```
+ジェネリックな型を１つだけ使用して`Point<T>`を定義したため、この定義は`Point<T>`構造体が何らかの型`T`に関して、ジェネリックであると述べている。その型が何であれ、`x`と`y`のフィールドは両方その同じ型になっていることに注意したい。例えば、
+```rust
+struct Point<T> {
+    x: T,
+    y: T,
+}
+
+fn main() {
+    let wont_work = Point { x: 5, y: 4.0 };
+}
+```
+これはエラーになる。その場合は複数のジェネリックな型引数を使用できる。
+```rust
+use std::io;
+struct Point<T,U>{
+  x:T,
+  y:U,
+}
+
+fn main(){
+  let integer_float=Point{x:5,y:4.0};
+}
+```
+### enum定義
+今までに出てきた`Optin<T>`と`Result<T,E>`はジェネリックなデータ型を保持するenumの良い例である。
+```rust
+enum Option<T> {
+    Some(T),
+    None,
+}
+```
+型`T`の値を保持する`Some`と、値を何も保持しない`None`である。
+```rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+`Result`は2つの型`T`、`E`に対してジェネリックで、2つの列挙子がある。型`T`の値を保持する`Ok`と型`E`の値を保持する`Err`である。
+### メソッド定義
+メソッド内で型`<T>`を使用したい場合は`impl`の後に`T`を宣言しないといけない。
+```rust
+use std::io;
+struct Point<T,U>{
+  x:T,
+  y:U,
+}
+
+fn main(){
+  let integer=Point{x:5,y:2};
+  let float=Point{x:5.0,y:4.0};
+
+  println!("{}",float.distance_from_origin());
+  println!("{}",integer.x());
+  //println!("{}",integer.distance_from_origin());
+}
+
+impl Point<f32,f32>{
+  fn distance_from_origin(&self)->f32{
+    (self.x.powi(2)+self.y.powi(2)).sqrt()
+  }
+}
+
+impl<T,U> Point<T,U>{
+  fn x(&self)->&T{
+    &self.x
+  }
+}
+```
+特定の型のみで関数を使用したい場合はジェネリクスを指定しない。コード上では`impl`の後に`<T>`を宣言しないで以前のように関数を定義する。  
+構造体定義のジェネリックな型引数は、必ずしもその構造体のメソッドシグニチャで使用するものと同じにはならない。
+```rust
+use std::io;
+#[derive(Debug)]
+struct Point<T,U>{
+  x:T,
+  y:U,
+}
+
+fn main(){
+  let p1=Point{x:5,y:1.2};
+  let p2=Point{x:"Hello",y:'t'};
+  let p3=p1.mixup(p2);
+
+  println!("{:?}",p3);
+  
+}
+
+impl<T,U> Point<T,U>{
+  //所有権ムーブ
+  fn mixup<V,W>(self,other:Point<V,W>)->Point<T,W>{
+    Point{
+      x:self.x,
+      y:other.y,
+    }
+  }
+}
+```
+### パフォーマンス
+ジェネリックな型引数を使用すると、実行時にコストが発生するのかな、と思うかもしれない。Rustではジェネリクス
+を使用しているコードの単相化をコンパイル時に行うことで達成している。**単相化**とは、コンパイル時に使用されている具体的な型を入れることで、ジェネリックなコードを特定のコードに変換する過程のこと。
+
+
+## トレイト
+型の振る舞いはその方に対して呼び出さるメソッドから構成される。異なる型は、それらの型すべてに対して同じメソッドを呼び出せるなら、同じ振る舞いを共有することになる。トレイトは、メソッドシグニチャをあるグループにまとめ、何らかの目的を達成するのに必要な一連の振る舞いを定義する手段である。C++でいうと、基底クラスに近い概念。振る舞いの共通化、ジェネリクスと組み合わせての型の制約、オブジェクト指向風の設計が用途である。
+### 定義と実装
+`Tweet`構造体と`NewsArticle`構造体にトレイトを実装する。トレイトの定義は`trait`と宣言することでできる。
+```rust
+pub trait Summary{
+    fn summarize(&self)->String;
+}
+
+pub struct NewsArticle{
+    pub headline: String,
+    pub location: String,
+    pub author: String,
+    pub content: String,
+}
+
+impl Summary for NewsArticle{
+    fn summarize(&self)->String{
+        format!("{},by {} ({})",self.headline,self.author,self.location)
+    }
+}
+
+pub struct Tweet{
+    pub username:String,
+    pub content:String,
+    pub reply:bool,
+    pub retweet:bool,
+}
+
+impl Summary for Tweet{
+    fn summarize(&self)->String{
+        format!("{}:{}",self.username,self.content)
+    }
+}
+```
+`impl`の後にトレイト名を置き、それから`for`キーワード、更にトレイトの実装対象の型の名前を指定することでトレイトを特定の型に実装することが出来る。トレイトを指定したら、型の中に絶対にトレイト内の関数をすべて持たないといけない。もし、この構造体、トレイトを`lib.rs`で定義した場合、`main`で呼び出す際は、トレイトも`use`で呼び出す必要がある。
+```rust
+use std::io;
+use practice::{Tweet,NewsArticle,Summary};
+
+fn main(){
+  let tweet=Tweet{
+    username:String::from("horse_ebooks"),
+    content:String::from(
+      "Hi"
+    ),
+    reply:false,
+    retweet:false,
+  };
+
+  println!("{}",tweet.summarize());
+}
+```
+`lib.rs`を`aggregator`と呼ばれるクレート専用にする。このクレート内のトレイトがどこまで有効なのかをみていく。ここで注意すべき制限の1つが**トレイトか対称の型が自分のクレートに固有であるときのみ、型に対してトレイトを実装できる**ということである。例えば、`Display`のような外部のクレートは`aggregator`クレートの機能の一部として、`Tweet`のような独自の型に実装できる。型`Tweet`が`aggregrator`追うレートに固有だからである。また、`Summary`を`aggregator`で標準ライブラリの`Vec<T>`に対して実装することもできる。  
+しかし、外部のトレイトを外部の型に対して実装することは出来ない。例として、`aggregator`クレート内で`Vec<T>`に対して`Display`トレイトを実装することは出来ない。`Display`と`Vec<T>`は標準ライブラリで定義され、`aggregator`クレートに固有ではないからである。この制限は**孤児のルール**と呼ばれる、プログラム特性の一部である。このおかげで、他の人のコードが自分のコードを壊したりすることがないことを保証してくれる。
