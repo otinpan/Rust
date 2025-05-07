@@ -2337,3 +2337,276 @@ fn main(){
 ```
 `lib.rs`を`aggregator`と呼ばれるクレート専用にする。このクレート内のトレイトがどこまで有効なのかをみていく。ここで注意すべき制限の1つが**トレイトか対称の型が自分のクレートに固有であるときのみ、型に対してトレイトを実装できる**ということである。例えば、`Display`のような外部のクレートは`aggregator`クレートの機能の一部として、`Tweet`のような独自の型に実装できる。型`Tweet`が`aggregrator`追うレートに固有だからである。また、`Summary`を`aggregator`で標準ライブラリの`Vec<T>`に対して実装することもできる。  
 しかし、外部のトレイトを外部の型に対して実装することは出来ない。例として、`aggregator`クレート内で`Vec<T>`に対して`Display`トレイトを実装することは出来ない。`Display`と`Vec<T>`は標準ライブラリで定義され、`aggregator`クレートに固有ではないからである。この制限は**孤児のルール**と呼ばれる、プログラム特性の一部である。このおかげで、他の人のコードが自分のコードを壊したりすることがないことを保証してくれる。
+
+### デフォルト実装
+ときとして、すべての型の全メソッドに対して実装を要求するのではなく、トレイトのすべて、あるいは一部のメソッドに対してデフォルトの振る舞いがあると有用である。特定の型にトレイトを実装する際、各メソッドのデフォルト実装を保持するかオーバーライドするか選べる。
+```rust
+pub trait Summary{
+    fn summarize_author(&self)->String;
+
+    fn summarize(&self)->String{
+        format!("(Read more from {} ...)",self.summarize_author())
+    }
+}
+
+pub struct NewsArticle{
+    pub headline: String,
+    pub location: String,
+    pub author: String,
+    pub content: String,
+}
+
+impl Summary for NewsArticle{
+    fn summarize(&self)->String{
+        format!("{},by {} ({})",self.headline,self.author,self.location)
+    }
+    fn summarize_author(&self)->String{
+        String::from("")
+    }
+}
+
+pub struct Tweet{
+    pub username:String,
+    pub content:String,
+    pub reply:bool,
+    pub retweet:bool,
+}
+
+impl Summary for Tweet{
+    fn summarize_author(&self)->String{
+        format!("@{}",self.username)
+    }
+}
+```
+```rust
+use std::io;
+use practice::{Tweet,NewsArticle,Summary};
+
+fn main(){
+  let tweet=Tweet{
+    username:String::from("horse_ebooks"),
+    content:String::from(
+      "Hi"
+    ),
+    reply:false,
+    retweet:false,
+  };
+
+  let news=NewsArticle{
+    headline: String::from("Penguins win the Stanley Cup Championship!"),
+    location: String::from("Pittsburgh, PA, USA"),
+    author: String::from("Iceburgh"),
+    content: String::from(
+        "The Pittsburgh Penguins once again are the best \
+         hockey team in the NHL.",
+    ),
+  };
+  println!("{}",news.summarize());
+  println!("{}",tweet.summarize());
+}
+```
+```
+Penguins win the Stanley Cup Championship!,by Iceburgh (Pittsburgh, PA, USA)
+(Read more from @horse_ebooks ...)
+```
+
+### 引数としてのトレイト
+トレイトを使っていろいろな種類の型を受け付ける関数を定義する方法を学ぶ。`item`の`summarize`メソッドを呼ぶ関数`notify`を定義する。この関数では、`Summary`をトレイトに持つどんな型でも引数に取ることが出来る。そして`Summary`トレイトの`summarize`を引き出すことが出来る。
+```rust
+pub fn notify(item: &impl Summary) {
+    println!("Breaking news! {}", item.summarize());
+}
+```
+### トレイト境界構文
+実は`impl Trait`構文(上の例)は、より長い**トレイト境界(trait bound)**と呼ばれる姿の糖衣構文なのである。  
+```rust
+pub fn notify<T:Summary>(item:&T){
+  println!("Braeking news! {}",item.summarize());
+}
+```
+山かっこの中にジェネリックな型引数の宣言を書き、型引数の後ろにコロンをはさんでトレイト境界を置く。他にも
+```rust
+pub fn notify(item1:&impl Summary,item2: &impl Summary){
+```
+```rust
+pub fn notify<T:Summary>(item1:&T,item2:&T){
+```
+は等価である。  
+また、複数のトレイト境界を`+`構文で指定することもできる。例えば`notify`に`summarize`メソッドに加えて`item`の画面出力形式を使わせたいとする。このとき`notify`の定義に`item`は`Display`と`Summary`の両方を実装しなければならない。この時`+`構文を使うことができる。
+```rust
+pub fn notify(item:&(imple Summary+Display)){
+```
+```rust
+pub fn notify<T:Summary+Display>(item:&T){
+```
+複数のジェネリック型の行き数を持ち、引数としてトレイトそ渡したい場合、関数のシグネチャが読みにくくなってしまう。
+```rust
+fn some_function<T:Display+Clone,U:Clone+Debug>(t:&T,u:&U)->i32{
+```
+代わりに`where`句を使いこのように書くことができる
+```rust
+fn some_function<T,U>(t:&T,u:&U)->i32
+  where T:Display+Clone,
+        U:Clone+Debug,
+{
+```
+### トレイトを実装している型を返す
+`impl Trait`構文を戻り値型のところで使うことにより、あるトレイトを実装する何らかの型を返すことが出来る。
+```rust
+fn returns_summarizable() -> impl Summary {
+    Tweet {
+        username: String::from("horse_ebooks"),
+        content: String::from(
+            "of course, as you probably already know, people",
+        ),
+        reply: false,
+        retweet: false,
+    }
+}
+```
+戻り値を`impl Summary`にすることにより、具体的な型が何かをゆうことなく、`returns_summarizable`関数は`Summary`トレイトを実装している何らかの型を返すのだ、と指定することが出来る。ただ、複数の型を指定することはできない。次の例はエラーになる。
+```rust
+fn returns_summarizable(switch: bool) -> impl Summary {
+    if switch {
+        NewsArticle {
+            headline: String::from(
+                "Penguins win the Stanley Cup Championship!",
+            ),
+            location: String::from("Pittsburgh, PA, USA"),
+            author: String::from("Iceburgh"),
+            content: String::from(
+                "The Pittsburgh Penguins once again are the best \
+                 hockey team in the NHL.",
+            ),
+        }
+    } else {
+        Tweet {
+            username: String::from("horse_ebooks"),
+            content: String::from(
+                "of course, as you probably already know, people",
+            ),
+            reply: false,
+            retweet: false,
+        }
+    }
+}
+```
+
+### Largest関数の修正
+```rust
+fn largest<T>(list:&Vec<T>)->T{
+  let mut largest=list[0];
+
+  for &item in list{
+    if item>largest{
+      largest=item;
+    }
+  }
+  largest
+}
+```
+この関数はジェネリクス型に指定できる`T`は、順序付けできない型も含んでしまう。
+```
+  --> src/main.rs:12:12
+   |
+12 |     if item>largest{
+   |        ----^------- T
+   |        |
+   |        T
+   |
+help: consider restricting type parameter `T` with trait `PartialOrd`
+   |
+8  | fn largest<T: std::cmp::PartialOrd>(list:&Vec<T>)->T{
+   |             ++++++++++++++++++++++
+```
+このようにエラーが出る。演算子`>`は標準ライブラリの`std::cmp::PartialOrd`デフォルトメソッドとして定義されているため`largest`関数が、比較できるあらゆる型のスライスに対して動くようにするには`T`のトレイト境界に`PartialOrd`を指定する必要がある。では
+```rust
+fn largest<T: PartialOrd>(list: &[T]) -> T {
+```
+このように書くとどうなるか。
+```
+ --> src/main.rs:9:19
+  |
+9 |   let mut largest=list[0];
+  |                   ^^^^^^^ move occurs because value has type `T`, which does not implement the `Copy` trait
+  |
+help: if `T` implemented `Clone`, you could clone the value
+ --> src/main.rs:8:12
+  |
+8 | fn largest<T:PartialOrd>(list:&Vec<T>)->T{
+  |            ^ consider constraining this type parameter with `Clone`
+9 |   let mut largest=list[0];
+  |                   ------- you could clone this value
+help: consider borrowing here
+  |
+9 |   let mut largest=&list[0];
+  |                   +
+
+error[E0507]: cannot move out of a shared reference
+  --> src/main.rs:11:16
+   |
+11 |   for &item in list{
+   |        ----    ^^^^
+   |        |
+   |        data moved here
+   |        move occurs because `item` has type `T`, which does not implement the `Copy` trait
+   |
+help: consider removing the borrow
+   |
+11 -   for &item in list{
+11 +   for item in list{
+```
+このようなエラーが出る。ジェネリックでないバージョンの`largest`関数では、最大の`i32`か`char`を探そうとするだけだった。`i32`や`char`のようなサイズが既知の型はスタックに格納できるため、`Copy`トレイトを実装している。しかし、`largest`関数をジェネリックにすると、`list`引数が`Copy`トレイトを実装しない型を含む可能性が出てきた。結果として`list[0]`から値を`largest`にムーブできず、このエラーに陥った。
+```rust
+fn largest<T: PartialOrd + Copy>(list: &[T]) -> T {
+    let mut largest = list[0];
+
+    for &item in list {
+        if item > largest {
+            largest = item;
+        }
+    }
+
+    largest
+}
+
+fn main() {
+    let number_list = vec![34, 50, 25, 100, 65];
+
+    let result = largest(&number_list);
+    println!("The largest number is {}", result);
+
+    let char_list = vec!['y', 'm', 'a', 'q'];
+
+    let result = largest(&char_list);
+    println!("The largest char is {}", result);
+}
+```
+このように書けば`PartialOrd`と`Copy`を実装する、`largest`関数の完全なコードになる。
+### トレイト境界を使用して、s￥メソッド実装を条件分けする
+`Pair<T>`は、内部の型`T`が比較を可能にする`partialOrd`トレイトと出力を可能にする`Display`トレイトを実装しているときのみ、`comp_display`メソッドを実装する。
+```rust
+use std::fmt::Display;
+
+struct Pair<T> {
+    x: T,
+    y: T,
+}
+
+impl<T> Pair<T> {
+    fn new(x: T, y: T) -> Self {
+        Self { x, y }
+    }
+}
+
+impl<T: Display + PartialOrd> Pair<T> {
+    fn cmp_display(&self) {
+        if self.x >= self.y {
+            println!("The largest member is x = {}", self.x);
+        } else {
+            println!("The largest member is y = {}", self.y);
+        }
+    }
+}
+```
+ジェネリクスを使うことで1つの関数定義で様々な型を使うことが出来る。トレイトは基底クラスみたいなイメージ。関数を定義して、様々な型に対して共通の動作を指定することが出来る。関数でトレイトを呼び出す場合は`impl Trait`やトレイト境界構文を使う必要がある。複数のジェネリクスを持つ関数を持つこともできるし、1つのジェネリクスに対して、複数のトレイトをつけることもできる。
