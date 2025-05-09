@@ -2610,3 +2610,229 @@ impl<T: Display + PartialOrd> Pair<T> {
 }
 ```
 ジェネリクスを使うことで1つの関数定義で様々な型を使うことが出来る。トレイトは基底クラスみたいなイメージ。関数を定義して、様々な型に対して共通の動作を指定することが出来る。関数でトレイトを呼び出す場合は`impl Trait`やトレイト境界構文を使う必要がある。複数のジェネリクスを持つ関数を持つこともできるし、1つのジェネリクスに対して、複数のトレイトをつけることもできる。
+
+## ライフタイム
+ライフタイムとは、その参照が有効になるスコープのことである。多くの場合、型が推論されるようにライフタイムも暗示的に推論される。行く数の型の可能性があるときは、型を注釈しなければならない。同様に、参照のライフタイムがいくつか異なる方法で関係することがある場合には注釈しなければならない。  
+ライフタイムの主な目的はダングリング参照を回避すること。例えば、以下のプログラムではダングリング参照が起こる。
+```rust
+    {
+        let r;
+
+        {
+            let x = 5;
+            r = &x;
+        }
+
+        println!("r: {}", r);
+    }
+```
+この例では。スコープの外側で`r`が宣言され、スコープの内側で`x`が宣言される。その後、スコープの内側で`r`が`x`の参照をセットするが、スコープが終わると同時に、参照先である`x`は解放される。`r`は解放されたメモリを見ることになる。これは危険である。Rustでは借用チェッカーによってコンパイラがこのコードが無効であると決定してくれる。
+### 借用チェッカー
+スコープを比較してすべての借用が有効であるかを決定するきのうを**借用チェッカー**と呼ぶ。
+```rust
+    {
+        let r;                // ---------+-- 'a
+                              //          |
+        {                     //          |
+            let x = 5;        // -+-- 'b  |
+            r = &x;           //  |       |
+        }                     // -+       |
+                              //          |
+        println!("r: {}", r); //          |
+    }                         // ---------+
+```
+`r`のライフタイムは`'a`と表され、`x`のライフタイムが`'b`と表される。`x`を参照する`r`は`x`のライフタイム`'b`よりも長生きである。この場合、借用チェッカーに引っかかってしまう。
+### 関数のジェネリックなライフタイム
+2角文字列スライスのうち、長い方を返す関数を書きたい。関数の引数に所有権を奪ってほしくないため、引数を参照にする。
+```rust
+fn main() {
+    let string1 = String::from("abcd");
+    let string2 = "xyz";
+
+    let result = longest(string1.as_str(), string2);
+    println!("The longest string is {}", result);
+}
+```
+`longest`関数を次のように定義する
+```rust
+fn longest(x: &str, y: &str) -> &str {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+これではコンパイル出来ない。
+```$ cargo run
+   Compiling chapter10 v0.1.0 (file:///projects/chapter10)
+error[E0106]: missing lifetime specifier
+(エラー[E0106]: ライフタイム指定子が不足しています)
+ --> src/main.rs:9:33
+  |
+9 | fn longest(x: &str, y: &str) -> &str {
+  |                                 ^ expected lifetime parameter
+  |                                   (ライフタイム引数があるべきです)
+  |
+  = help: this function's return type contains a borrowed value, but the signature does not say whether it is borrowed from `x` or `y`
+  (助言: この関数の戻り値型は借用された値を含んでいますが、
+   シグニチャは、それが`x`と`y`どちらから借用されたものなのか宣言していません)
+
+error: aborting due to previous error
+
+For more information about this error, try `rustc --explain E0106`.
+error: could not compile `chapter10`.
+
+To learn more, run the command again with --verbose.
+```
+助言テキストは、戻り値の型はジェネリックなライフタイム引数である必要があると明かしている。コンパイラは、返している参照が`x`か`y`のとちらを参照しているか分からないからである。返す参照が常に有効であるかを決定したときのようにスコープを見ることも、参照の具体的なライフタイムが分からないから出来ないのである。
+### ライフタイム注釈記法
+シグニチャにジェネリックな型引数を指定された関数が、あらゆる型を受け取ることができるのと同様に、ジェネリックなライフタイム引数を指定された関数は、あらゆるライフタイムの参照を受け取ることができる。ライフタイム注釈は、ライフタイムに影響することなく、複数の参照のライフタイムのお互いの関係を記述する。
+```rust
+&i32        // a reference
+            // (ただの)参照
+&'a i32     // a reference with an explicit lifetime
+            // 明示的なライフタイム付きの参照
+&'a mut i32 // a mutable reference with an explicit lifetime
+            // 明示的なライフタイム付きの可変参照
+```
+
+### 関数シグニチャにおけるライフタイム注釈
+では実際に`longest`関数をライフタイム注釈を用いて修正する。
+```rust
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
+    if x.len() > y.len() {
+        x
+    } else {
+        y
+    }
+}
+```
+何らかのライフタイム`'a`に対して、関数は2つの引数をとり、どちらも少なくともライフタイム`'a`と同じだけ生きる文字列スライスであるとコンパイラに教えるようになった。また、この関数シグニチャは、関数から変える文字列スライスも少なくともライフタイム`'a`と同じだけ生きると、コンパイラに教えている。具体的な参照を`longest`に渡すと、`'a`に代入される具体的なライフタイムは、`x`のスコープの一部であって`y`のスコープと重なる部分になる。言い換えると、ジェネリックなライフタイム`'a`は、`x`と`y`のライフタイムの小さい方に等しい具体的な
+ライフタイムになる。
+```rust
+fn main() {
+    // 長い文字列は長い
+    let string1 = String::from("long string is long");
+    // （訳注：この言葉自体に深い意味はない。下の"xyz"より長いということだけが重要）
+
+    {
+        let string2 = String::from("xyz");
+        let result = longest(string1.as_str(), string2.as_str());
+        // 一番長い文字列は{}
+        println!("The longest string is {}", result);
+    }
+}
+```
+これはコンパイルが通るだろうか。答えはyesである。ジェネリックなライフタイム`'a`は、`string1`と`string2`の重なった部分のライフタイムになる。従って、`'a`は`string2`のライフタイムになる。`result`のライフタイムは`string2`のライフタイムに含まれるため、`longest`関数のライフタイム`'a`は矛盾しない。
+```rust
+fn main() {
+    let string1 = String::from("long string is long");
+    let result;
+    {
+        let string2 = String::from("xyz");
+        result = longest(string1.as_str(), string2.as_str());
+    }
+    println!("The longest string is {}", result);
+}
+```
+ではこれは。これはコンパイルエラーになる。先ほどと同様に、`longest`関数の引数のライフタイムは`string2`のライフタイムになる。戻り値のライフタイムは`result`のものになるが、これは`string2`のライフタイムの外側にある。そのため、ダングリング参照する恐れがあり、コンパイルはエラーをはく。  
+ライフタイム引数を指定する必要があるかは、関数が行っていることに依存する。
+```rust
+fn longest<'a>(x: &'a str, y: &str) -> &'a str {
+    x
+}
+```
+例えば、引数`x`と戻り値に対してライフタイム`'a`を指定したが、引数`y`には指定していない。これは`y`のライフタイムが`x`や戻り値のライフタイムとは何も関係がないからである。  
+関数から参照を返す差異、戻り値のライフタイム引数は、引数のうちどれかのライフタイム引数を一致する必要がある。
+```rust
+fn longest<'a>(x: &str, y: &str) -> &'a str {
+    // 本当に長い文字列
+    let result = String::from("really long string");
+    result.as_str()
+}
+```
+戻り値型にライフタイム引数`'a`を指定しても、戻り値のライフタイムは。引数のライフタイムと全く関係がないから、これはコンパイルできない。修正するには、参照ではなくデータ型を返せばよい。
+### 構造体定義のライフタイム注釈
+いままでは、所有された型を保持する構造体だけを定義してきた。構造体に参照を保持させることもできるが、その場合、構造体定義の全参照にライフタイム注釈を付け加える必要がある。
+```rust
+struct ImportantExcerpt<'a> {
+    part: &'a str,
+}
+
+fn main() {
+    // 僕をイシュマエルとお呼び。何年か前・・・
+    let novel = String::from("Call me Ishmael. Some years ago...");
+    //                                                  "'.'が見つかりませんでした"
+    let first_sentence = novel.split('.').next().expect("Could not find a '.'");
+    let i = ImportantExcerpt {
+        part: first_sentence,
+    };
+}
+```
+構造体に文字列スライスを保持するフィールド、`part`があり、これは参照である。ライフタイム`'a`を記述することで、構造体インスタンス`i`が参照した`&str`型の`first_sentence`よりも長生きであることを保証してくれる。
+```rust
+struct ImportantExcerpt<'a> {
+  part: &'a str,
+}
+
+fn main() {
+  // 僕をイシュマエルとお呼び。何年か前・・・
+  let novel = String::from("Call me Ishmael. Some years ago...");
+  //                                                  "'.'が見つかりませんでした"
+  let first_sentence = novel.split('.').next().expect("Could not find a '.'");
+  {
+    let i = ImportantExcerpt {
+      part: first_sentence,
+    };
+  }
+}
+```
+これは`first_sentence`が構造体インスタンスの`ImportantExcerpt`よりも長生きしているため、エラー。
+
+### ライフタイム省略
+全参照にはライフタイムがあり、参照を使用する関数や構造体にはライフタイム引数を指定する必要があった。ただ
+```rust
+fn first_word(s: &str) -> &str {
+    let bytes = s.as_bytes();
+
+    for (i, &item) in bytes.iter().enumerate() {
+        if item == b' ' {
+            return &s[0..i];
+        }
+    }
+
+    &s[..]
+}
+```
+はライフタイム注釈なしでコンパイルできた。実は、Rust(ver1.0)以前では
+```rust
+fn first_word<'a>(s: &'a str) -> &'a str {
+```
+と書かれていた。このようにライフタイム注釈を入力されていられる部分がたくさん見られた。そこで、**ライフタイム省略規則**がコンパイラの参照解析に落とし込まれた。その規則に最後まで到達し、それでもライフタイムを割り出せない参照があった場合は、kンπらはエラーで停止する。引数のライフタイムは**入力ライフタイム**、戻り値のライフタイムは**出力ライフタイム**と称される。
+1. 参照である各引数は、独自のライフタイム引数を得る。1引数の関数は、1つのライフタイム引数を得る。`fn foo<'a>(x:&'a i32);`2つの場合は。2つの個別のライフタイム引数を得る。`fn foo<'a.'b>(x:&a i32,y:'b i32)`
+2. 1つだけ入力ライフタイム引数があるなら、そのライフタイムがすべての出力ライフタイム引数に代入される。`fn foo<'a>->&'a i32`
+3. 複数の入力ライフタイム引数があるけど、メソッドナノでそのうちの一つが`&self`や`&mut self`だったら、`self`のライフタイムが全出力ライフタイム引数に代入される。  
+
+コンパイラの立場になって`first_word`関数のライフタイムがどうなっているかを追跡する。まず関数のシグニチャは参照に紐づけられるライフタイムがない状態から始まる。
+```rust
+fn first_word(s: &str) -> &str {
+```
+1番目の規則が適用される。引数が1つであり、それは独自のライフタイム`'a`を得る。
+```rust
+fn first_word<'a>(s: &'a str) -> &str {
+```
+2番目の規則によって、1つの入力引数のライフタイムが出力引数に代入されるから次のようになる。
+```rust
+fn first_word<'a>(s: &'a str) -> &'a str {
+```
+すべての参照にライフタイムがついたから、コンパイラは、プログラマにこの関数シグニチャのライフタイムを注釈してもらう必要はない。  
+では`longest`関数をみる。
+```rust
+fn longest(x: &str, y: &str) -> &str {
+```
+まず第1規則が適用される。
+```rust
+fn longest<'a, 'b>(x: &'a str, y: &'b str) -> &str {
+```
+2つ以上入力ライフタイムがあるため、2番目の規則は適用されない。3番目の規則も適用されない。この時点で、戻り値はライフタイムを指定されていないからエラーになる。
