@@ -1,19 +1,27 @@
 use std::io;
+use std::thread;
+use std::fmt::Display;
 
-struct ImportantExcerpt<'a> {
-  part: &'a str,
-}
-
-fn main() {
-  // 僕をイシュマエルとお呼び。何年か前・・・
-  let novel = String::from("Call me Ishmael. Some years ago...");
-  //                                                  "'.'が見つかりませんでした"
-  let first_sentence = novel.split('.').next().expect("Could not find a '.'");
-  {
-    let i = ImportantExcerpt {
-      part: first_sentence,
-    };
+fn longest_with_ans_announcement<'a,T>(
+  x:&'a str,
+  y:&'a str,
+ // ann: T,
+)->&'a str
+where T:Display
+{
+  //println!("{}",ann);
+  if x.len()>y.len(){
+    x
+  }else{
+    y
   }
+}
+fn main() {
+  let s1=String::from("yes");
+  let s2=String::from("no");
+  let num:i64=89;
 
- 
+  let s1=longest_with_ans_announcement(&s1,&s2,num);
+
+  println!("{}",s1)
 }

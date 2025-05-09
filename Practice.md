@@ -2836,3 +2836,395 @@ fn longest(x: &str, y: &str) -> &str {
 fn longest<'a, 'b>(x: &'a str, y: &'b str) -> &str {
 ```
 2つ以上入力ライフタイムがあるため、2番目の規則は適用されない。3番目の規則も適用されない。この時点で、戻り値はライフタイムを指定されていないからエラーになる。
+### メソッド定義におけるライフタイム注釈
+構造体にライフタイムのあるメソッドを実装するとき、ジェネリックな型引数と同じ記法を使用する。`impl`ブロック内のメソッドシグニチャでは、参照は構造体のフィールドの参照のライフタイムに紐づいている可能性と、独立している可能性がある。
+```rust
+impl<'a> ImportantExcerpt<'a> {
+    fn announce_and_return_part(&self, announcement: &str) -> &str {
+        //       "お知らせします: {}"
+        println!("Attention please: {}", announcement);
+        self.part
+    }
+}
+```
+この場合、関数は2つの引数の参照をもつ。そして、戻り値にも参照をもつ。まず1番目の規則が適用され、`&self`と`announcement`に独自のライフタイムを与える。次に3つ目の規則が適用されうる。引数の1つが`&self`であるため、戻り値は`&self`のライフタイムをえる。
+
+### 静的ライフタイム
+特殊なライフタイムとして`'static`が存在する。これは、この参照がプログラムの全期間存在することを意味する。
+```rust
+// 僕は静的ライフタイムを持ってるよ
+let s: &'static str = "I have a static lifetime.";
+```
+むやみに使うべきではない。値が長生きしても安全であることを明示したいときにつかう。
+### ジェネリックな型引数、トレイト境界、ライフタイムを一度に
+```rust
+use std::io;
+use std::thread;
+use std::fmt::Display;
+
+fn longest_with_ans_announcement<'a,T>(
+  x:&'a str,
+  y:&'a str,
+  ann: T,
+)->&'a str
+where T:Display
+{
+  println!("{}",ann);
+  if x.len()>y.len(){
+    x
+  }else{
+    y
+  }
+}
+fn main() {
+  let s1=String::from("yes");
+  let s2=String::from("no");
+  let num:i64=89;
+
+  let s1=longest_with_ans_announcement(&s1,&s2,num);
+
+  println!("{}",s1)
+}
+``` 
+ジェネリックな型引数、トレイト、トレイト境界、ジェネリックなライフタイム引き数により、多くの異なる場面で動くコードを繰り返すことなく各準部ができた。ジェネリックな型引数により、コードを異なる型に適用させてくれる。トレイトとトレイト境界は、型がジェネリックであっても、コードが必要とする振る舞いを持つことを保証する。ライフタイム注釈を活用することで、柔軟なコードにダングリング参照が存在しないことを保証する方法を学んだ。
+
+## テスト
+Rustにはプログラムの正当性に重きを置いて設計されているが、正当性は複雑で、単純に証明することはない。Rustの型システムはこの重荷の多くの部分を肩代わりするが、型システムはあらゆる種類の不当性を捕捉することはできない。Rustでは、言語内で自動化されたソフトウェアテストを書くことをサポートしている。
+## テストの記述法
+Rustのテストでは典型的には以下の3つの動作を行う
+1. 必要なデータや状態をセットアップする
+2. テスト対称のコードを走らせる
+3. 結果が想定道理であることを断定する
+
+### テスト関数の構成
+Rustに置けるテストとは`test`属性で注釈されたな関数のことである。次のように`adder`プロジェクトをつくる。
+```rust
+$ cargo new adder --lib
+     Created library `adder` project
+$ cd adder
+```
+`src/lib.rs`の中身は
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
+    }
+}
+```
+このようになっている。`fn`の行に`#[test]`注釈があることがわかる。これは`it_works`関数がテスト関数であることをしめすものである。`tests`モジュールは内部モジュールであるから、外部モジュール内のテストはいかにあるコードを内部モジュールのスコープに持っていく必要がある。`use super::*`と入れる必要がある。実際に`cargo test`でテストする。
+```
+$ cargo test
+   Compiling adder v0.1.0 (file:///projects/adder)
+    Finished test [unoptimized + debuginfo] target(s) in 0.57s
+     Running target/debug/deps/adder-92948b65e88960b4
+
+running 1 test
+test tests::it_works ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+   Doc-tests adder
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+`tests::it_works ... ok`は全テストが通ったことを意味する。`passed`、`failed`は通過、失敗したテストの数を合計している。`ignored`は無視すると指定されたテストの数。`measured`はパフォーマンスを測定するベンチマークテスト用である。  
+テストを失敗してみる
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_works() {
+        let result = add(2, 2);
+        assert_eq!(result, 4);
+    }
+
+    #[test]
+    fn another(){
+        panic!("Make this test fail");
+    }
+}
+```
+```$ cargo test
+   Compiling adder v0.1.0 (file:///projects/adder)
+    Finished test [unoptimized + debuginfo] target(s) in 0.72s
+     Running target/debug/deps/adder-92948b65e88960b4
+
+running 2 tests
+test tests::another ... FAILED
+test tests::exploration ... ok
+
+failures:
+
+---- tests::another stdout ----
+thread 'main' panicked at 'Make this test fail', src/lib.rs:10:9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace.
+
+
+failures:
+    tests::another
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
+
+error: test failed, to rerun pass '--lib'
+```
+`test test::another`の行は`FAIlED`を表示し、失敗したことを示す。
+### `assert!`
+`assert!`マクロは、標準ライブラリで提供されているが、テスト内の何らかの条件が`true`と評価されることを確かめたいときに有効である。`assert!`マクロは、値が`true`ならテストは通るが、`false`なら`panic!`を呼び出し、テストは失敗する。
+
+### `asser_eq!`と`assert_ne!`
+コードの結果と期待される値が等しいときにテストを通す場合は`assert_eq!`を、異なっているときにテストを通す場合は`assert_ne!`を使う。
+```rust
+pub fn add_two(a: i32) -> i32 {
+    a + 2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_adds_two() {
+        assert_eq!(4, add_two(2));
+    }
+}
+```
+比較対象の値は`PartialEq`と`Degub`トレイトを実装していなければならない。すべての組み込み型と、ほぼすべての標準ライブラリの型はこれらのトレイトを実装している。自分で定義した構造体やenumについては、その型の値が等しいか等しくないかをアサーションするために、`PartialEq`を実施する必要がある。また失敗したときにその値をプリントできるように`Debug`を追加する必要がある。定義に`#[derive(PartialEq,Debug)]`という注釈を追加すればよい。
+
+### カスタムの失敗メッセージを追加する
+例えば、このように`String`に特定の文字列が入っているかをテストする場合を考える
+```rust
+pub fn greeting(name: &str) -> String {
+    format!("Hello {}!", name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn greeting_contains_name() {
+        let result = greeting("Carol");
+        assert!(result.contains("Carol"));
+    }
+}
+```
+ただ、これではテストはアサーションが成功するかを示し、失敗した場合はどの行にアサーションがあるかを示すだけである。`greeting`が実際に度の値を持っているかを確認出来たらより有用になる。
+```rust
+    #[test]
+    fn greeting_contains_name() {
+        let result = greeting("Carol");
+        assert!(
+            result.contains("Carol"),
+            //挨拶(greeting)は名前を含んでいません。その値は`{}`でした
+            "Greeting did not contain name, value was `{}`",
+            result
+        );
+    }
+```
+そこでこのように書くことでエラーメッセージを受け取ることが出来る。
+
+### `should_panic`でパニックを確認する
+期待する正しい値をコードが返すことを確認することに加えて、想定通りにコードがエラー状態を扱っていることを確認することも重要である。テスト関数に`should_panic`という別の属性を追加することで、関数内のコードがパニックしたら、テストを通過させる。パニックしなかったら、テストは失敗する。
+```rust
+pub struct Guess {
+    value: i32,
+}
+
+impl Guess {
+    pub fn new(value: i32) -> Guess {
+        if value < 1 || value > 100 {
+            //予想値は1から100の間でなければなりませんが、{}でした。
+            panic!("Guess value must be between 1 and 100, got {}.", value);
+        }
+
+        Guess { value }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn greater_than_100() {
+        Guess::new(200);
+    }
+}
+```
+この場合、`panic!`が起こるためテストは通る。`should_panic`を使用するテストは不正確なこともある。なぜならｍコードが何らかのパニックを起こしたことしか示さないからである。`should_panic`の正確性を期すために、`shouldd_panic`属性に`expected`引数を追加することもできる。`ecpected`引数と同じ`panic!`が発生したとき、テストは通る。そうでないとき、テストは通らない。
+```rust
+// --snip--
+impl Guess {
+    pub fn new(value: i32) -> Guess {
+        if value < 1 {
+            panic!(
+                //予想値は1以上でなければなりませんが、{}でした。
+                "Guess value must be greater than or equal to 1, got {}.",
+                value
+            );
+        } else if value > 100 {
+            panic!(
+                //予想値は100以下でなければなりませんが、{}でした。
+                "Guess value must be less than or equal to 100, got {}.",
+                value
+            );
+        }
+
+        Guess { value }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    //予想値は100以下でなければなりません
+    #[should_panic(expected = "Guess value must be less than or equal to 100")]
+    fn greater_than_100() {
+        Guess::new(200);
+    }
+}
+```
+
+### `Result<T,E>`をテストで使う
+`Result<T,E>`を使い、パニックする代わりに`Err`を返すように書き直す
+```rust
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() -> Result<(), String> {
+        if 2 + 2 == 4 {
+            Ok(())
+        } else {
+            Err(String::from("two plus two does not equal four"))
+        }
+    }
+}
+```
+テストが成功すれば`Ok(())`を、失敗すれば`Err`に`String`を入れて返すようにする。
+
+## テストの実行のされ方を制御する
+`cargo run`がコードをコンパイルし、出来上がったバイナリを走らせるのと同様に、`cargo test`はコードをテストモードでコンパイルし、出来上がったテストバイナリを実行する。`cargo test`では標準では、スレッドを使用して並行にはしる。これは、テストが早く実行し終わり、コードが機能しているかに関わらず、反応をより早く得られることを意味する。ただ、これはデータの競合(data race)の元となる。例えば、各テストがディスクに`test_output.txt`というファイルを作成し、何らかのデータを書き込むコードを走らせるとする。そして、各テストはそのファイルのデータを読み込み、ファイルが特定の値を含んでいるとアサーションし、その値は各テストで異なる。テストが同時に走るため、あるテストが他のテストに書き込んだり読み込んだりする間にファイルを上書きするかもしれない。それから2番目のテストが失敗する。解決策は、各テストが異なるファイルに書き込むこと、または一度に一つのテストを実行することである。  
+並行にテストを実施しない場合、`--test-threads`フラグと使用したいスレッド数をテストバイナリに送ることが出来る。  
+```
+cargo test -- --test-threads=1
+```  
+テストスレッド数を1にセットし、並列処理を行わない。時間はかかるが、お互いに邪魔することはない。
+
+### 関数の出力を表示する
+```rust
+fn prints_and_returns_10(a: i32) -> i32 {
+    //{}という値を得た
+    println!("I got the value {}", a);
+    10
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn this_test_will_pass() {
+        let value = prints_and_returns_10(4);
+        assert_eq!(10, value);
+    }
+
+    #[test]
+    fn this_test_will_fail() {
+        let value = prints_and_returns_10(8);
+        assert_eq!(5, value);
+    }
+}
+
+```
+例えばこれらをテストする。すると
+```
+running 2 tests
+test tests::this_test_will_pass ... ok
+test tests::this_test_will_fail ... FAILED
+
+failures:
+
+---- tests::this_test_will_fail stdout ----
+        I got the value 8
+thread 'tests::this_test_will_fail' panicked at 'assertion failed: `(left == right)`
+  left: `5`,
+ right: `10`', src/lib.rs:19:8
+note: Run with `RUST_BACKTRACE=1` for a backtrace.
+
+failures:
+    tests::this_test_will_fail
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
+```
+このような結果になり、`I got the value 8`のみえられる。テストに失敗した場合のみ、出力が得られるのである。テストを通った場合、この関数の出力はキャプチャされてしまう。これを無効にするには
+```
+cargo test -- --nocapture
+```
+とする。
+
+### 名前でテストの一部を実行する
+すべてテストをすると時間がかかってしまうことがある。特定の部分のコードしか対象にしていない場合、そのコードに関わるテストの実を走らせたいかもしれない。`cargo test`に走らせたい名前を引数として渡すことで、実行するテストを選ぶことが出来る。例えばこのような関数があるとする
+```rust
+pub fn add_two(a: i32) -> i32 {
+    a + 2
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_two_and_two() {
+        assert_eq!(4, add_two(2));
+    }
+
+    #[test]
+    fn add_three_and_two() {
+        assert_eq!(5, add_two(3));
+    }
+
+    #[test]
+    fn one_hundred() {
+        assert_eq!(102, add_two(100));
+    }
+}
+```
+単独のテストを走らせる場合  
+```
+cargo test one_hondred
+```
+このように名前を指定する。  
+特定の文字列をを含む関数をすべて実行する場合  
+```
+cargo test add
+```
+すると名前に`add`が入った関数のみテストされる。
+
+### 特に要望のない場合テストを無視する。
+時には時間のかかるテストを無視したい場合があるだろう。その場合には関数に`ignore`属性を付与するとよい。
+```rust
+#[test]
+fn it_works() {
+    assert_eq!(2 + 2, 4);
+}
+
+#[test]
+#[ignore]
+fn expensive_test() {
+    // 実行に1時間かかるコード
+    // code that takes an hour to run
+}
+```
+この場合、`expensive_test`関数のテストはスキップされえる。

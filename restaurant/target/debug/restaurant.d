@@ -1,1 +1,0 @@
-/home/hase/Rust/RustGit/restaurant/target/debug/restaurant: /home/hase/Rust/RustGit/restaurant/src/front_of_house.rs /home/hase/Rust/RustGit/restaurant/src/lib.rs /home/hase/Rust/RustGit/restaurant/src/main.rs
